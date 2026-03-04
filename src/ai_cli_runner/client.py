@@ -66,7 +66,12 @@ async def call_ai_cli(
 
     subprocess_cwd = None if config.uses_own_cwd else cwd
 
-    effective_timeout = get_ai_cli_timeout() if ai_cli_timeout is None else ai_cli_timeout
+    if ai_cli_timeout is None:
+        effective_timeout = get_ai_cli_timeout()
+    elif ai_cli_timeout <= 0:
+        return False, f"Invalid ai_cli_timeout: {ai_cli_timeout}. Must be a positive integer (minutes)."
+    else:
+        effective_timeout = ai_cli_timeout
     timeout = effective_timeout * 60  # Convert minutes to seconds
 
     logger.info("Calling %s CLI", provider_info)

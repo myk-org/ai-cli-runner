@@ -52,7 +52,7 @@ class TestCallAiCli:
         assert output == "AI response"
         call_args = mock_run.call_args
         cmd = call_args[0][0]
-        assert cmd == ["agent", "--model", "gpt-4", "--print", "--workspace", "/my/project"]
+        assert cmd == ["agent", "--model", "gpt-4", "--print", "--workspace", str(cwd)]
 
     async def test_unknown_provider(self) -> None:
         success, output = await call_ai_cli(prompt="hello", ai_provider="unknown", ai_model="model")
@@ -158,6 +158,16 @@ class TestCallAiCli:
         call_args = mock_run.call_args
         cmd = call_args[0][0]
         assert cmd == ["claude", "--model", "opus-4", "-p"]
+
+    async def test_invalid_timeout_zero(self) -> None:
+        success, output = await call_ai_cli(prompt="hello", ai_provider="claude", ai_model="opus-4", ai_cli_timeout=0)
+        assert success is False
+        assert "Invalid ai_cli_timeout" in output
+
+    async def test_invalid_timeout_negative(self) -> None:
+        success, output = await call_ai_cli(prompt="hello", ai_provider="claude", ai_model="opus-4", ai_cli_timeout=-5)
+        assert success is False
+        assert "Invalid ai_cli_timeout" in output
 
 
 class TestCheckAiCliAvailable:
