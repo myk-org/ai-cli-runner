@@ -18,7 +18,8 @@ class ProviderConfig:
 
 
 def _build_claude_cmd(binary: str, model: str, _cwd: Path | None, cli_flags: list[str]) -> list[str]:
-    return [binary, "--model", model, *cli_flags]
+    # -p: non-interactive print mode, required for subprocess piping
+    return [binary, "--model", model, "-p", *cli_flags]
 
 
 def _build_gemini_cmd(binary: str, model: str, _cwd: Path | None, cli_flags: list[str]) -> list[str]:
@@ -26,7 +27,8 @@ def _build_gemini_cmd(binary: str, model: str, _cwd: Path | None, cli_flags: lis
 
 
 def _build_cursor_cmd(binary: str, model: str, cwd: Path | None, cli_flags: list[str]) -> list[str]:
-    cmd = [binary, "--model", model, *cli_flags]
+    # --print: non-interactive print mode, required for subprocess piping
+    cmd = [binary, "--model", model, "--print", *cli_flags]
     if cwd:
         cmd.extend(["--workspace", str(cwd)])
     return cmd

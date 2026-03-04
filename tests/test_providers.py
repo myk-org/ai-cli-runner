@@ -34,29 +34,30 @@ class TestProviderConfig:
 
     async def test_build_cmd_callable_with_four_args(self) -> None:
         config = ProviderConfig(binary="claude", build_cmd=_build_claude_cmd)
-        cmd = config.build_cmd(config.binary, "opus-4", None, ["-p"])
+        cmd = config.build_cmd(config.binary, "opus-4", None, [])
         assert cmd == ["claude", "--model", "opus-4", "-p"]
 
 
 class TestBuildClaudeCmd:
     async def test_basic_command_no_flags(self) -> None:
         cmd = _build_claude_cmd("claude", "opus-4", None, [])
-        assert cmd == ["claude", "--model", "opus-4"]
+        assert cmd == ["claude", "--model", "opus-4", "-p"]
 
     async def test_with_flags(self) -> None:
-        cmd = _build_claude_cmd("claude", "opus-4", None, ["--dangerously-skip-permissions", "-p"])
-        assert cmd == ["claude", "--model", "opus-4", "--dangerously-skip-permissions", "-p"]
+        cmd = _build_claude_cmd("claude", "opus-4", None, ["--dangerously-skip-permissions"])
+        assert cmd == ["claude", "--model", "opus-4", "-p", "--dangerously-skip-permissions"]
 
     async def test_ignores_cwd(self) -> None:
         cwd = Path("/some/path")
-        cmd_with_cwd = _build_claude_cmd("claude", "opus-4", cwd, ["-p"])
-        cmd_without_cwd = _build_claude_cmd("claude", "opus-4", None, ["-p"])
+        cmd_with_cwd = _build_claude_cmd("claude", "opus-4", cwd, [])
+        cmd_without_cwd = _build_claude_cmd("claude", "opus-4", None, [])
         assert cmd_with_cwd == cmd_without_cwd
 
     async def test_custom_binary(self) -> None:
         cmd = _build_claude_cmd("/usr/local/bin/claude", "sonnet", None, [])
         assert cmd[0] == "/usr/local/bin/claude"
         assert cmd[2] == "sonnet"
+        assert "-p" in cmd
 
 
 class TestBuildGeminiCmd:
@@ -82,19 +83,21 @@ class TestBuildGeminiCmd:
 class TestBuildCursorCmd:
     async def test_without_cwd_no_flags(self) -> None:
         cmd = _build_cursor_cmd("agent", "gpt-4", None, [])
-        assert cmd == ["agent", "--model", "gpt-4"]
+        assert cmd == ["agent", "--model", "gpt-4", "--print"]
 
     async def test_with_cwd_and_flags(self) -> None:
-        cmd = _build_cursor_cmd("agent", "gpt-4", Path("/my/project"), ["--force", "--print"])
-        assert cmd == ["agent", "--model", "gpt-4", "--force", "--print", "--workspace", "/my/project"]
+        cmd = _build_cursor_cmd("agent", "gpt-4", Path("/my/project"), ["--force"])
+        assert cmd == ["agent", "--model", "gpt-4", "--print", "--force", "--workspace", "/my/project"]
 
     async def test_without_cwd_no_workspace_flag(self) -> None:
         cmd = _build_cursor_cmd("agent", "gpt-4", None, [])
         assert "--workspace" not in cmd
+        assert "--print" in cmd
 
     async def test_custom_binary(self) -> None:
         cmd = _build_cursor_cmd("/usr/bin/agent", "model-x", Path("/workspace"), [])
         assert cmd[0] == "/usr/bin/agent"
+        assert "--print" in cmd
 
 
 class TestProvidersDict:

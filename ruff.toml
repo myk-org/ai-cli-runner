@@ -3,6 +3,8 @@ target-version = "py312"
 
 [lint]
 select = ["E", "F", "W", "I", "UP", "S", "B", "A", "C4", "SIM", "TCH", "RUF"]
+# S603: subprocess call with shell=False — expected, this package wraps subprocess calls
+# S607: partial executable path — expected, CLI tool names are resolved via PATH
 ignore = ["S603", "S607"]
 
 [lint.per-file-ignores]

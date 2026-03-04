@@ -8,7 +8,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-asyncio", "pytest-xdist"]
+dev = ["mypy", "pytest", "pytest-asyncio", "pytest-xdist"]
 
 [build-system]
 requires = ["hatchling"]
@@ -34,3 +34,7 @@ strict_equality = true
 extra_checks = true
 warn_unused_configs = true
 warn_redundant_casts = true
+
+[[tool.mypy.overrides]]
+module = "simple_logger.*"
+ignore_missing_imports = true

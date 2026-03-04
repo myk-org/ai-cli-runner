@@ -10,6 +10,7 @@ from ai_cli_runner.providers import PROVIDERS, VALID_AI_PROVIDERS
 logger = get_logger(name=__name__, level=os.environ.get("LOG_LEVEL", "INFO"))
 
 DEFAULT_TIMEOUT_MINUTES = 10
+SANITY_CHECK_TIMEOUT_SECONDS = 60
 
 
 def get_ai_cli_timeout(default_minutes: int = DEFAULT_TIMEOUT_MINUTES) -> int:
@@ -132,7 +133,7 @@ async def check_ai_cli_available(
             cwd=None,
             capture_output=True,
             text=True,
-            timeout=60,
+            timeout=SANITY_CHECK_TIMEOUT_SECONDS,
             input="Hi",
         )
         if sanity_result.returncode != 0:

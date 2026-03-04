@@ -12,7 +12,6 @@ from ai_cli_runner import call_ai_cli, check_ai_cli_available, run_parallel_with
 available, msg = await check_ai_cli_available(
     ai_provider="claude",
     ai_model="claude-sonnet-4-6",
-    cli_flags=["-p"],
 )
 
 # Call Claude
@@ -21,7 +20,7 @@ success, output = await call_ai_cli(
     cwd=Path("/path/to/repo"),
     ai_provider="claude",
     ai_model="claude-sonnet-4-6",
-    cli_flags=["--dangerously-skip-permissions", "-p"],
+    cli_flags=["--dangerously-skip-permissions"],
 )
 
 # Call Gemini
@@ -39,7 +38,7 @@ success, output = await call_ai_cli(
     cwd=Path("/path/to/repo"),
     ai_provider="cursor",
     ai_model="sonnet-4.6",
-    cli_flags=["--force", "--print"],
+    cli_flags=["--force"],
 )
 
 # Run multiple calls in parallel with bounded concurrency
@@ -49,7 +48,6 @@ results = await run_parallel_with_limit(
             prompt=p,
             ai_provider="claude",
             ai_model="claude-sonnet-4-6",
-            cli_flags=["-p"],
         )
         for p in prompts
     ],

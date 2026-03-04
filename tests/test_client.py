@@ -1,3 +1,4 @@
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -29,7 +30,7 @@ class TestCallAiCli:
         assert output == "AI response"
         mock_run.assert_called_once()
         call_args = mock_run.call_args
-        assert call_args[0][0] == ["claude", "--model", "opus-4"]
+        assert call_args[0][0] == ["claude", "--model", "opus-4", "-p"]
 
     @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
     @patch("ai_cli_runner.client.subprocess.run")
@@ -51,7 +52,7 @@ class TestCallAiCli:
         assert output == "AI response"
         call_args = mock_run.call_args
         cmd = call_args[0][0]
-        assert cmd == ["agent", "--model", "gpt-4", "--workspace", "/my/project"]
+        assert cmd == ["agent", "--model", "gpt-4", "--print", "--workspace", "/my/project"]
 
     async def test_unknown_provider(self) -> None:
         success, output = await call_ai_cli(prompt="hello", ai_provider="unknown", ai_model="model")
@@ -142,21 +143,21 @@ class TestCallAiCli:
             prompt="hello",
             ai_provider="claude",
             ai_model="opus-4",
-            cli_flags=["--dangerously-skip-permissions", "-p"],
+            cli_flags=["--dangerously-skip-permissions"],
         )
         call_args = mock_run.call_args
         cmd = call_args[0][0]
-        assert cmd == ["claude", "--model", "opus-4", "--dangerously-skip-permissions", "-p"]
+        assert cmd == ["claude", "--model", "opus-4", "-p", "--dangerously-skip-permissions"]
 
     @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
     @patch("ai_cli_runner.client.subprocess.run")
     async def test_no_cli_flags_default(self, mock_run: MagicMock, _mock_thread: MagicMock) -> None:
-        """Without cli_flags, command has no extra flags."""
+        """Without cli_flags, command has no extra flags beyond structural ones."""
         mock_run.return_value = _successful_run_result()
         await call_ai_cli(prompt="hello", ai_provider="claude", ai_model="opus-4")
         call_args = mock_run.call_args
         cmd = call_args[0][0]
-        assert cmd == ["claude", "--model", "opus-4"]
+        assert cmd == ["claude", "--model", "opus-4", "-p"]
 
 
 class TestCheckAiCliAvailable:
@@ -210,18 +211,17 @@ class TestCheckAiCliAvailable:
         await check_ai_cli_available(
             ai_provider="claude",
             ai_model="opus-4",
-            cli_flags=["--dangerously-skip-permissions", "-p"],
+            cli_flags=["--dangerously-skip-permissions"],
         )
         call_args = mock_run.call_args
         cmd = call_args[0][0]
-        assert cmd == ["claude", "--model", "opus-4", "--dangerously-skip-permissions", "-p"]
+        assert cmd == ["claude", "--model", "opus-4", "-p", "--dangerously-skip-permissions"]
 
 
 class TestGetAiCliTimeout:
     async def test_default_value(self) -> None:
         with patch.dict("os.environ", {}, clear=False):
-            if "AI_CLI_TIMEOUT" in __import__("os").environ:
-                del __import__("os").environ["AI_CLI_TIMEOUT"]
+            os.environ.pop("AI_CLI_TIMEOUT", None)
             result = get_ai_cli_timeout()
             assert result == DEFAULT_TIMEOUT_MINUTES
 
@@ -247,8 +247,7 @@ class TestGetAiCliTimeout:
 
     async def test_custom_default_minutes(self) -> None:
         with patch.dict("os.environ", {}, clear=False):
-            if "AI_CLI_TIMEOUT" in __import__("os").environ:
-                del __import__("os").environ["AI_CLI_TIMEOUT"]
+            os.environ.pop("AI_CLI_TIMEOUT", None)
             result = get_ai_cli_timeout(default_minutes=30)
             assert result == 30
 
