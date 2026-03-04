@@ -86,8 +86,9 @@ class TestBuildCursorCmd:
         assert cmd == ["agent", "--model", "gpt-4", "--print"]
 
     async def test_with_cwd_and_flags(self) -> None:
-        cmd = _build_cursor_cmd("agent", "gpt-4", Path("/my/project"), ["--force"])
-        assert cmd == ["agent", "--model", "gpt-4", "--print", "--force", "--workspace", "/my/project"]
+        cwd = Path("/my/project")
+        cmd = _build_cursor_cmd("agent", "gpt-4", cwd, ["--force"])
+        assert cmd == ["agent", "--model", "gpt-4", "--print", "--force", "--workspace", str(cwd)]
 
     async def test_without_cwd_no_workspace_flag(self) -> None:
         cmd = _build_cursor_cmd("agent", "gpt-4", None, [])

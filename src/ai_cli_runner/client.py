@@ -5,7 +5,7 @@ from pathlib import Path
 
 from simple_logger.logger import get_logger
 
-from ai_cli_runner.providers import PROVIDERS, VALID_AI_PROVIDERS
+from ai_cli_runner.providers import PROVIDERS, VALID_AI_PROVIDERS, ProviderConfig
 
 logger = get_logger(name=__name__, level=os.environ.get("LOG_LEVEL", "INFO"))
 
@@ -25,6 +25,24 @@ def get_ai_cli_timeout(default_minutes: int = DEFAULT_TIMEOUT_MINUTES) -> int:
         logger.warning("Non-positive AI_CLI_TIMEOUT=%s; defaulting to %d", raw, default_minutes)
         return default_minutes
     return value
+
+
+def _validate_provider_and_model(ai_provider: str, ai_model: str) -> tuple[bool, str, ProviderConfig | None]:
+    """Validate AI provider and model configuration.
+
+    Returns:
+        Tuple of (valid, error_message, config). If valid is False, error_message explains why.
+    """
+    config = PROVIDERS.get(ai_provider)
+    if not config:
+        return (
+            False,
+            f"Unknown AI provider: '{ai_provider}'. Valid providers: {', '.join(sorted(VALID_AI_PROVIDERS))}",
+            None,
+        )
+    if not ai_model:
+        return False, "No AI model configured. Set AI_MODEL env var or pass ai_model.", None
+    return True, "", config
 
 
 async def call_ai_cli(
@@ -48,18 +66,13 @@ async def call_ai_cli(
     Returns:
         Tuple of (success, output). success is True with AI output, False with error message.
     """
-    config = PROVIDERS.get(ai_provider)
-    if not config:
-        return (
-            False,
-            f"Unknown AI provider: '{ai_provider}'. Valid providers: {', '.join(sorted(VALID_AI_PROVIDERS))}",
-        )
+    valid, error_msg, config = _validate_provider_and_model(ai_provider, ai_model)
+    if not valid:
+        return False, error_msg
 
-    if not ai_model:
-        return (
-            False,
-            "No AI model configured. Set AI_MODEL env var or pass ai_model in request body.",
-        )
+    # config is guaranteed non-None when valid=True
+    if config is None:  # pragma: no cover
+        return False, "Internal error: provider config is unexpectedly None"
 
     provider_info = f"{ai_provider.upper()} ({ai_model})"
     cmd = config.build_cmd(config.binary, ai_model, cwd, cli_flags or [])
@@ -122,11 +135,13 @@ async def check_ai_cli_available(
     Returns:
         Tuple of (available, message). available is True if working, False with error message.
     """
-    config = PROVIDERS.get(ai_provider)
-    if not config:
-        return False, f"Unknown AI provider: '{ai_provider}'"
-    if not ai_model:
-        return False, "No AI model configured"
+    valid, error_msg, config = _validate_provider_and_model(ai_provider, ai_model)
+    if not valid:
+        return False, error_msg
+
+    # config is guaranteed non-None when valid=True
+    if config is None:  # pragma: no cover
+        return False, "Internal error: provider config is unexpectedly None"
 
     provider_info = f"{ai_provider.upper()} ({ai_model})"
     sanity_cmd = config.build_cmd(config.binary, ai_model, None, cli_flags or [])
