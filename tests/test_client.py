@@ -292,6 +292,8 @@ class TestRunWithProcessGroup:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             start_new_session=True,
         )
         proc.communicate.assert_called_once_with(input="hello", timeout=None)

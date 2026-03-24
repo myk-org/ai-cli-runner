@@ -19,7 +19,7 @@ async def run_parallel_with_limit(
         List of results (including exceptions if any failed).
     """
     if max_concurrency < 1:
-        max_concurrency = MAX_CONCURRENT_AI_CALLS
+        raise ValueError("max_concurrency must be >= 1")
     semaphore = asyncio.Semaphore(max_concurrency)
 
     async def bounded(coro: Coroutine[Any, Any, Any]) -> object:

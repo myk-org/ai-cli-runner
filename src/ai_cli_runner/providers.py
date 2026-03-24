@@ -1,11 +1,6 @@
-import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-
-from simple_logger.logger import get_logger
-
-logger = get_logger(name=__name__, level=os.environ.get("LOG_LEVEL", "INFO"))
 
 
 @dataclass(frozen=True)
