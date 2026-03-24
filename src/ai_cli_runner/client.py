@@ -110,7 +110,12 @@ def _kill_process_group(process: subprocess.Popen[str]) -> None:
     Args:
         process: The Popen instance whose process group should be killed.
     """
-    pgid = os.getpgid(process.pid)
+    try:
+        pgid = os.getpgid(process.pid)
+    except OSError:
+        # Process already gone; nothing to kill
+        process.communicate()
+        return
 
     # Graceful shutdown attempt
     with contextlib.suppress(OSError):
