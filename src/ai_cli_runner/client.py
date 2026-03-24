@@ -1,5 +1,7 @@
 import asyncio
+import contextlib
 import os
+import signal
 import subprocess
 from pathlib import Path
 
@@ -43,6 +45,92 @@ def _validate_provider_and_model(ai_provider: str, ai_model: str) -> tuple[bool,
     if not ai_model:
         return False, "No AI model configured. Set AI_MODEL env var or pass ai_model.", None
     return True, "", config
+
+
+def _run_with_process_group(
+    cmd: list[str],
+    cwd: Path | None = None,
+    timeout: int | float | None = None,
+    input_data: str | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run a subprocess in its own process group for reliable timeout enforcement.
+
+    Using ``start_new_session=True`` places the child (and any processes it
+    spawns) in a new process group.  On timeout we send SIGTERM to the entire
+    group, wait briefly, then escalate to SIGKILL -- ensuring no orphan
+    processes survive.
+
+    Args:
+        cmd: Command to execute.
+        cwd: Working directory for the subprocess.
+        timeout: Maximum wall-clock seconds to allow.
+        input_data: Data to write to the subprocess's stdin.
+
+    Returns:
+        A ``CompletedProcess`` with captured stdout/stderr.
+
+    Raises:
+        subprocess.TimeoutExpired: If the process exceeds *timeout*.
+        FileNotFoundError: If the command binary is not found.
+    """
+    process = subprocess.Popen(
+        cmd,
+        cwd=cwd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        start_new_session=True,
+    )
+    try:
+        stdout, stderr = process.communicate(input=input_data, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        _kill_process_group(process)
+        raise
+    except BaseException:
+        _kill_process_group(process)
+        raise
+
+    return subprocess.CompletedProcess(
+        args=cmd,
+        returncode=process.returncode,
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+
+def _kill_process_group(process: subprocess.Popen[str]) -> None:
+    """Kill a subprocess and its entire process group.
+
+    Sends SIGTERM first for graceful shutdown, waits up to 5 seconds,
+    then escalates to SIGKILL if the process group is still alive.
+
+    Args:
+        process: The Popen instance whose process group should be killed.
+    """
+    try:
+        pgid = os.getpgid(process.pid)
+    except OSError:
+        # Process already gone; nothing to kill
+        process.communicate()
+        return
+
+    # Graceful shutdown attempt
+    with contextlib.suppress(OSError):
+        os.killpg(pgid, signal.SIGTERM)
+
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        # Escalate to SIGKILL
+        with contextlib.suppress(OSError):
+            os.killpg(pgid, signal.SIGKILL)
+        process.wait()
+
+    # Drain any remaining output to avoid ResourceWarning
+    process.communicate()
 
 
 async def call_ai_cli(
@@ -91,13 +179,11 @@ async def call_ai_cli(
 
     try:
         result = await asyncio.to_thread(
-            subprocess.run,
+            _run_with_process_group,
             cmd,
             cwd=subprocess_cwd,
-            capture_output=True,
-            text=True,
             timeout=timeout,
-            input=prompt,
+            input_data=prompt,
         )
     except subprocess.TimeoutExpired:
         return (
@@ -148,13 +234,11 @@ async def check_ai_cli_available(
 
     try:
         sanity_result = await asyncio.to_thread(
-            subprocess.run,
+            _run_with_process_group,
             sanity_cmd,
             cwd=None,
-            capture_output=True,
-            text=True,
             timeout=SANITY_CHECK_TIMEOUT_SECONDS,
-            input="Hi",
+            input_data="Hi",
         )
         if sanity_result.returncode != 0:
             error_detail = sanity_result.stderr or sanity_result.stdout or "unknown"

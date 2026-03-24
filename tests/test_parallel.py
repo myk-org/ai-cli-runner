@@ -1,5 +1,7 @@
 import asyncio
 
+import pytest
+
 from ai_cli_runner.parallel import MAX_CONCURRENT_AI_CALLS, run_parallel_with_limit
 
 
@@ -53,24 +55,12 @@ class TestRunParallelWithLimit:
         assert len(results) == 20
         assert results == list(range(20))
 
-    async def test_max_concurrency_less_than_one_uses_default(self) -> None:
-        active = 0
-        max_active = 0
-
-        async def tracked_coro(i: int) -> int:
-            nonlocal active, max_active
-            active += 1
-            max_active = max(max_active, active)
-            await asyncio.sleep(0.01)
-            active -= 1
-            return i
-
-        results = await run_parallel_with_limit(
-            [tracked_coro(i) for i in range(5)],
-            max_concurrency=0,
-        )
-        assert max_active <= MAX_CONCURRENT_AI_CALLS
-        assert len(results) == 5
+    async def test_max_concurrency_less_than_one_raises(self) -> None:
+        with pytest.raises(ValueError, match="max_concurrency must be >= 1"):
+            await run_parallel_with_limit(
+                [],
+                max_concurrency=0,
+            )
 
     async def test_empty_list(self) -> None:
         results = await run_parallel_with_limit([])
