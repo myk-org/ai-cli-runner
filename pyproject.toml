@@ -1,6 +1,6 @@
 [project]
 name = "ai-cli-runner"
-version = "0.1.1"
+version = "0.1.2"
 description = "Shared async Python package for calling AI CLI tools (Claude, Gemini, Cursor) via subprocess"
 requires-python = ">=3.12"
 dependencies = [
