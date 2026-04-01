@@ -9,7 +9,6 @@ class ProviderConfig:
 
     binary: str
     build_cmd: Callable[[str, str, Path | None, list[str]], list[str]]
-    uses_own_cwd: bool = False
 
 
 def _build_claude_cmd(binary: str, model: str, _cwd: Path | None, cli_flags: list[str]) -> list[str]:
@@ -32,7 +31,7 @@ def _build_cursor_cmd(binary: str, model: str, cwd: Path | None, cli_flags: list
 PROVIDERS: dict[str, ProviderConfig] = {
     "claude": ProviderConfig(binary="claude", build_cmd=_build_claude_cmd),
     "gemini": ProviderConfig(binary="gemini", build_cmd=_build_gemini_cmd),
-    "cursor": ProviderConfig(binary="agent", uses_own_cwd=True, build_cmd=_build_cursor_cmd),
+    "cursor": ProviderConfig(binary="agent", build_cmd=_build_cursor_cmd),
 }
 
 VALID_AI_PROVIDERS: frozenset[str] = frozenset(PROVIDERS.keys())

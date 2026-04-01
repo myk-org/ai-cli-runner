@@ -116,12 +116,25 @@ class TestCallAiCli:
 
     @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
     @patch("ai_cli_runner.client._run_with_process_group")
-    async def test_cursor_subprocess_cwd_is_none(self, mock_run: MagicMock, _mock_thread: MagicMock) -> None:
+    async def test_cursor_subprocess_cwd_is_passed(self, mock_run: MagicMock, _mock_thread: MagicMock) -> None:
         mock_run.return_value = _successful_run_result()
         cwd = Path("/my/project")
         await call_ai_cli(prompt="hello", cwd=cwd, ai_provider="cursor", ai_model="gpt-4")
         call_kwargs = mock_run.call_args[1]
+        assert call_kwargs["cwd"] == cwd
+
+    @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
+    @patch("ai_cli_runner.client._run_with_process_group")
+    async def test_cursor_subprocess_cwd_none_when_not_provided(
+        self, mock_run: MagicMock, _mock_thread: MagicMock
+    ) -> None:
+        mock_run.return_value = _successful_run_result()
+        await call_ai_cli(prompt="hello", ai_provider="cursor", ai_model="gpt-4")
+        call_args = mock_run.call_args
+        cmd = call_args[0][0]
+        call_kwargs = call_args[1]
         assert call_kwargs["cwd"] is None
+        assert "--workspace" not in cmd
 
     @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
     @patch("ai_cli_runner.client._run_with_process_group")

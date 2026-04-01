@@ -17,15 +17,6 @@ class TestProviderConfig:
         config = ProviderConfig(binary="test-bin", build_cmd=_build_claude_cmd)
         assert config.binary == "test-bin"
         assert config.build_cmd is _build_claude_cmd
-        assert config.uses_own_cwd is False
-
-    async def test_provider_config_uses_own_cwd_default_false(self) -> None:
-        config = ProviderConfig(binary="x", build_cmd=_build_claude_cmd)
-        assert config.uses_own_cwd is False
-
-    async def test_provider_config_uses_own_cwd_explicit_true(self) -> None:
-        config = ProviderConfig(binary="x", build_cmd=_build_claude_cmd, uses_own_cwd=True)
-        assert config.uses_own_cwd is True
 
     async def test_provider_config_is_frozen(self) -> None:
         config = ProviderConfig(binary="x", build_cmd=_build_claude_cmd)
@@ -108,28 +99,18 @@ class TestProvidersDict:
     async def test_claude_provider(self) -> None:
         config = PROVIDERS["claude"]
         assert config.binary == "claude"
-        assert config.uses_own_cwd is False
         assert config.build_cmd is _build_claude_cmd
 
     async def test_gemini_provider(self) -> None:
         config = PROVIDERS["gemini"]
         assert config.binary == "gemini"
-        assert config.uses_own_cwd is False
         assert config.build_cmd is _build_gemini_cmd
 
     async def test_cursor_provider(self) -> None:
         config = PROVIDERS["cursor"]
         assert config.binary == "agent"
-        assert config.uses_own_cwd is True
         assert config.build_cmd is _build_cursor_cmd
 
     async def test_valid_ai_providers_matches_keys(self) -> None:
         assert set(PROVIDERS.keys()) == VALID_AI_PROVIDERS
         assert {"claude", "gemini", "cursor"} == VALID_AI_PROVIDERS
-
-    async def test_only_cursor_uses_own_cwd(self) -> None:
-        for name, config in PROVIDERS.items():
-            if name == "cursor":
-                assert config.uses_own_cwd is True
-            else:
-                assert config.uses_own_cwd is False, f"{name} should not use own cwd"

@@ -165,7 +165,7 @@ async def call_ai_cli(
     provider_info = f"{ai_provider.upper()} ({ai_model})"
     cmd = config.build_cmd(config.binary, ai_model, cwd, cli_flags or [])
 
-    subprocess_cwd = None if config.uses_own_cwd else cwd
+    subprocess_cwd = cwd
 
     if ai_cli_timeout is None:
         effective_timeout = get_ai_cli_timeout()
