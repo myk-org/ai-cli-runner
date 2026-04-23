@@ -127,6 +127,6 @@ def parse_json_output(raw_output: str, provider: str) -> tuple[str, AITokenUsage
 
     try:
         return config.parse_json(raw_output, provider)
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: never raise to caller
         logger.warning("Failed to parse JSON output from '%s'; returning raw output", provider, exc_info=True)
         return raw_output, None

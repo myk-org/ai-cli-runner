@@ -4,6 +4,7 @@ import os
 import signal
 import subprocess
 from pathlib import Path
+from typing import Literal
 
 from simple_logger.logger import get_logger
 
@@ -142,7 +143,7 @@ async def call_ai_cli(
     ai_model: str = "",
     ai_cli_timeout: int | None = None,
     cli_flags: list[str] | None = None,
-    output_format: str | None = None,
+    output_format: Literal["json"] | None = None,
 ) -> AIResult:
     """Call AI CLI (Claude, Gemini, or Cursor) with given prompt.
 
@@ -153,7 +154,7 @@ async def call_ai_cli(
         ai_model: AI model to use.
         ai_cli_timeout: Timeout in minutes (overrides AI_CLI_TIMEOUT env var).
         cli_flags: Extra CLI flags to pass to the provider command.
-        output_format: Output format (e.g., "json"). When set, parses structured output.
+        output_format: Output format ("json" or None). When set, parses structured output.
 
     Returns:
         AIResult with success status, text output, and optional usage metadata.
@@ -163,13 +164,37 @@ async def call_ai_cli(
     if not valid:
         return AIResult(success=False, text=error_msg)
 
-    assert config is not None  # guaranteed by _validate_provider_and_model
+    if config is None:  # defensive: guaranteed by _validate_provider_and_model
+        raise RuntimeError("ProviderConfig unexpectedly None after validation")
 
     provider_info = f"{ai_provider.upper()} ({ai_model})"
 
     effective_cli_flags = list(cli_flags or [])
     if output_format:
-        effective_cli_flags = ["--output-format", output_format, *effective_cli_flags]
+        # Remove any existing --output-format flag (both "--output-format value" and "--output-format=value" forms)
+        cleaned_flags: list[str] = []
+        skip_next = False
+        found_existing = False
+        for i, flag in enumerate(effective_cli_flags):
+            if skip_next:
+                skip_next = False
+                continue
+            if flag == "--output-format":
+                found_existing = True
+                # Skip the next element (the value), if present
+                if i + 1 < len(effective_cli_flags):
+                    skip_next = True
+                continue
+            if flag.startswith("--output-format="):
+                found_existing = True
+                continue
+            cleaned_flags.append(flag)
+        if found_existing:
+            logger.warning(
+                "Caller-supplied --output-format in cli_flags will be overridden by output_format=%r",
+                output_format,
+            )
+        effective_cli_flags = ["--output-format", output_format, *cleaned_flags]
 
     cmd = config.build_cmd(config.binary, ai_model, cwd, effective_cli_flags)
 
@@ -213,6 +238,13 @@ async def call_ai_cli(
 
     if output_format:
         text, usage = parse_json_output(result.stdout, ai_provider)
+        if usage is None:
+            logger.debug(
+                "%s: output_format=%r requested but no usage parsed; raw output length=%d",
+                provider_info,
+                output_format,
+                len(result.stdout),
+            )
         return AIResult(success=True, text=text, usage=usage)
 
     return AIResult(success=True, text=result.stdout)
@@ -240,7 +272,8 @@ async def check_ai_cli_available(
     if not valid:
         return AIResult(success=False, text=error_msg)
 
-    assert config is not None  # guaranteed by _validate_provider_and_model
+    if config is None:  # defensive: guaranteed by _validate_provider_and_model
+        raise RuntimeError("ProviderConfig unexpectedly None after validation")
 
     provider_info = f"{ai_provider.upper()} ({ai_model})"
     sanity_cmd = config.build_cmd(config.binary, ai_model, None, cli_flags or [])

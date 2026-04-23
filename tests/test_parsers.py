@@ -219,6 +219,11 @@ class TestParseCursorJson:
         assert usage is not None
         assert usage.provider == "cursor"
 
+    def test_model_empty_by_design(self, parsed: tuple[str, AITokenUsage | None]) -> None:
+        _, usage = parsed
+        assert usage is not None
+        assert usage.model == ""
+
 
 class TestParseGeminiJson:
     @pytest.fixture()
