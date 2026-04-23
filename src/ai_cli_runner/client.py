@@ -7,6 +7,8 @@ from pathlib import Path
 
 from simple_logger.logger import get_logger
 
+from ai_cli_runner.models import AIResult
+from ai_cli_runner.parsers import parse_json_output
 from ai_cli_runner.providers import PROVIDERS, VALID_AI_PROVIDERS, ProviderConfig
 
 logger = get_logger(name=__name__, level=os.environ.get("LOG_LEVEL", "INFO"))
@@ -140,7 +142,8 @@ async def call_ai_cli(
     ai_model: str = "",
     ai_cli_timeout: int | None = None,
     cli_flags: list[str] | None = None,
-) -> tuple[bool, str]:
+    output_format: str | None = None,
+) -> AIResult:
     """Call AI CLI (Claude, Gemini, or Cursor) with given prompt.
 
     Args:
@@ -150,27 +153,33 @@ async def call_ai_cli(
         ai_model: AI model to use.
         ai_cli_timeout: Timeout in minutes (overrides AI_CLI_TIMEOUT env var).
         cli_flags: Extra CLI flags to pass to the provider command.
+        output_format: Output format (e.g., "json"). When set, parses structured output.
 
     Returns:
-        Tuple of (success, output). success is True with AI output, False with error message.
+        AIResult with success status, text output, and optional usage metadata.
+        Supports tuple unpacking: success, text = await call_ai_cli(...)
     """
     valid, error_msg, config = _validate_provider_and_model(ai_provider, ai_model)
     if not valid:
-        return False, error_msg
+        return AIResult(success=False, text=error_msg)
 
-    # config is guaranteed non-None when valid=True
-    if config is None:  # pragma: no cover
-        return False, "Internal error: provider config is unexpectedly None"
+    assert config is not None  # guaranteed by _validate_provider_and_model
 
     provider_info = f"{ai_provider.upper()} ({ai_model})"
-    cmd = config.build_cmd(config.binary, ai_model, cwd, cli_flags or [])
 
-    subprocess_cwd = cwd
+    effective_cli_flags = list(cli_flags or [])
+    if output_format:
+        effective_cli_flags = ["--output-format", output_format, *effective_cli_flags]
+
+    cmd = config.build_cmd(config.binary, ai_model, cwd, effective_cli_flags)
 
     if ai_cli_timeout is None:
         effective_timeout = get_ai_cli_timeout()
     elif ai_cli_timeout <= 0:
-        return False, f"Invalid ai_cli_timeout: {ai_cli_timeout}. Must be a positive integer (minutes)."
+        return AIResult(
+            success=False,
+            text=f"Invalid ai_cli_timeout: {ai_cli_timeout}. Must be a positive integer (minutes).",
+        )
     else:
         effective_timeout = ai_cli_timeout
     timeout = effective_timeout * 60  # Convert minutes to seconds
@@ -181,34 +190,39 @@ async def call_ai_cli(
         result = await asyncio.to_thread(
             _run_with_process_group,
             cmd,
-            cwd=subprocess_cwd,
+            cwd=cwd,
             timeout=timeout,
             input_data=prompt,
         )
     except subprocess.TimeoutExpired:
-        return (
-            False,
-            f"{provider_info} CLI error: Analysis timed out after {effective_timeout} minutes",
+        return AIResult(
+            success=False,
+            text=f"{provider_info} CLI error: Analysis timed out after {effective_timeout} minutes",
         )
     except FileNotFoundError:
-        return (
-            False,
-            f"{provider_info} CLI error: '{config.binary}' not found. Ensure the CLI is installed and on PATH.",
+        return AIResult(
+            success=False,
+            text=f"{provider_info} CLI error: '{config.binary}' not found. Ensure the CLI is installed and on PATH.",
         )
 
     if result.returncode != 0:
         error_detail = result.stderr or result.stdout or "unknown error (no output)"
-        return False, f"{provider_info} CLI error: {error_detail}"
+        return AIResult(success=False, text=f"{provider_info} CLI error: {error_detail}")
 
     logger.debug("%s CLI response length: %d chars", provider_info, len(result.stdout))
-    return True, result.stdout
+
+    if output_format:
+        text, usage = parse_json_output(result.stdout, ai_provider)
+        return AIResult(success=True, text=text, usage=usage)
+
+    return AIResult(success=True, text=result.stdout)
 
 
 async def check_ai_cli_available(
     ai_provider: str = "",
     ai_model: str = "",
     cli_flags: list[str] | None = None,
-) -> tuple[bool, str]:
+) -> AIResult:
     """Check if an AI CLI tool is available and working.
 
     Sends a trivial "Hi" prompt to verify the CLI is installed and working.
@@ -219,15 +233,14 @@ async def check_ai_cli_available(
         cli_flags: Extra CLI flags to pass to the provider command.
 
     Returns:
-        Tuple of (available, message). available is True if working, False with error message.
+        AIResult with success=True if working, success=False with error message.
+        Supports tuple unpacking: available, msg = await check_ai_cli_available(...)
     """
     valid, error_msg, config = _validate_provider_and_model(ai_provider, ai_model)
     if not valid:
-        return False, error_msg
+        return AIResult(success=False, text=error_msg)
 
-    # config is guaranteed non-None when valid=True
-    if config is None:  # pragma: no cover
-        return False, "Internal error: provider config is unexpectedly None"
+    assert config is not None  # guaranteed by _validate_provider_and_model
 
     provider_info = f"{ai_provider.upper()} ({ai_model})"
     sanity_cmd = config.build_cmd(config.binary, ai_model, None, cli_flags or [])
@@ -242,10 +255,10 @@ async def check_ai_cli_available(
         )
         if sanity_result.returncode != 0:
             error_detail = sanity_result.stderr or sanity_result.stdout or "unknown"
-            return False, f"{provider_info} sanity check failed: {error_detail}"
+            return AIResult(success=False, text=f"{provider_info} sanity check failed: {error_detail}")
     except subprocess.TimeoutExpired:
-        return False, f"{provider_info} sanity check timed out"
+        return AIResult(success=False, text=f"{provider_info} sanity check timed out")
     except FileNotFoundError:
-        return False, f"{provider_info}: '{config.binary}' not found in PATH"
+        return AIResult(success=False, text=f"{provider_info}: '{config.binary}' not found in PATH")
 
-    return True, ""
+    return AIResult(success=True, text="")

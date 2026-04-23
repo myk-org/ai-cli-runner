@@ -1,0 +1,132 @@
+from __future__ import annotations
+
+import json
+import os
+from typing import Any
+
+from simple_logger.logger import get_logger
+
+from ai_cli_runner.models import AITokenUsage
+
+logger = get_logger(name=__name__, level=os.environ.get("LOG_LEVEL", "INFO"))
+
+
+def _extract_json(raw_output: str) -> dict[str, Any]:
+    """Extract JSON from raw CLI output, handling noise lines (e.g., Gemini warnings).
+
+    First tries to parse the whole string. If that fails, finds the first '{'
+    and last '}' to extract the JSON block, handling both prefix and suffix noise.
+
+    Raises:
+        json.JSONDecodeError: If no valid JSON found.
+    """
+    try:
+        return json.loads(raw_output)
+    except json.JSONDecodeError:
+        start = raw_output.find("{")
+        end = raw_output.rfind("}")
+        if start == -1 or end == -1 or end < start:
+            raise
+        return json.loads(raw_output[start : end + 1])
+
+
+def parse_claude_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage | None]:
+    """Parse Claude CLI JSON output. Returns (text, usage)."""
+    data = _extract_json(raw_output)
+    text = data.get("result", "")
+
+    usage_data = data.get("usage", {})
+    model_usage = data.get("modelUsage", {})
+    model_name = next(iter(model_usage), "")
+
+    usage = AITokenUsage(
+        input_tokens=usage_data.get("input_tokens", 0),
+        output_tokens=usage_data.get("output_tokens", 0),
+        cache_read_tokens=usage_data.get("cache_read_input_tokens", 0),
+        cache_write_tokens=usage_data.get("cache_creation_input_tokens", 0),
+        cost_usd=data.get("total_cost_usd"),
+        duration_ms=data.get("duration_ms"),
+        model=model_name,
+        provider=provider,
+    )
+    return text, usage
+
+
+def parse_cursor_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage | None]:
+    """Parse Cursor CLI JSON output. Returns (text, usage)."""
+    data = _extract_json(raw_output)
+    text = data.get("result", "")
+
+    usage_data = data.get("usage", {})
+
+    usage = AITokenUsage(
+        input_tokens=usage_data.get("inputTokens", 0),
+        output_tokens=usage_data.get("outputTokens", 0),
+        cache_read_tokens=usage_data.get("cacheReadTokens", 0),
+        cache_write_tokens=usage_data.get("cacheWriteTokens", 0),
+        duration_ms=data.get("duration_ms"),
+        provider=provider,
+    )
+    return text, usage
+
+
+def parse_gemini_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage | None]:
+    """Parse Gemini CLI JSON output. Returns (text, usage).
+
+    Note: text field is 'response' not 'result'.
+    Note: Gemini may use multiple models (e.g., router + main); tokens and
+          duration are aggregated across all models.
+    Note: output tokens are 'candidates' + 'thoughts' (thinking model tokens).
+    """
+    data = _extract_json(raw_output)
+    text = data.get("response", "")
+
+    stats = data.get("stats", {})
+    models = stats.get("models", {})
+
+    total_input = 0
+    total_output = 0
+    total_cached = 0
+    total_duration = 0
+    model_names = []
+
+    for model_name, model_data in models.items():
+        model_names.append(model_name)
+        tokens = model_data.get("tokens", {})
+        api = model_data.get("api", {})
+
+        total_input += tokens.get("input", 0)
+        total_output += tokens.get("candidates", 0) + tokens.get("thoughts", 0)
+        total_cached += tokens.get("cached", 0)
+        total_duration += api.get("totalLatencyMs", 0)
+
+    usage = AITokenUsage(
+        input_tokens=total_input,
+        output_tokens=total_output,
+        cache_read_tokens=total_cached,
+        cache_write_tokens=0,
+        duration_ms=total_duration if total_duration > 0 else None,
+        model=", ".join(model_names),
+        provider=provider,
+    )
+    return text, usage
+
+
+def parse_json_output(raw_output: str, provider: str) -> tuple[str, AITokenUsage | None]:
+    """Route to the correct provider parser.
+
+    Best-effort: if parsing fails, log warning and return (raw_output, None).
+    """
+    # Lazy import to avoid circular dependency (providers imports parsers at module level)
+    from ai_cli_runner.providers import PROVIDERS
+
+    config = PROVIDERS.get(provider)
+    if config is None or config.parse_json is None:
+        logger.warning("No JSON parser for provider '%s'; returning raw output", provider)
+        return raw_output, None
+
+    try:
+        return config.parse_json(raw_output, provider)
+    except Exception:
+        logger.warning("Failed to parse JSON output from '%s'; returning raw output", provider, exc_info=True)
+        return raw_output, None

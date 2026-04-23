@@ -1,6 +1,15 @@
-from collections.abc import Callable
+from __future__ import annotations
+
 from dataclasses import dataclass
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+from ai_cli_runner.parsers import parse_claude_json, parse_cursor_json, parse_gemini_json
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from pathlib import Path
+
+    from ai_cli_runner.models import AITokenUsage
 
 
 @dataclass(frozen=True)
@@ -9,6 +18,7 @@ class ProviderConfig:
 
     binary: str
     build_cmd: Callable[[str, str, Path | None, list[str]], list[str]]
+    parse_json: Callable[[str, str], tuple[str, AITokenUsage | None]] | None = None
 
 
 def _build_claude_cmd(binary: str, model: str, _cwd: Path | None, cli_flags: list[str]) -> list[str]:
@@ -29,9 +39,9 @@ def _build_cursor_cmd(binary: str, model: str, cwd: Path | None, cli_flags: list
 
 
 PROVIDERS: dict[str, ProviderConfig] = {
-    "claude": ProviderConfig(binary="claude", build_cmd=_build_claude_cmd),
-    "gemini": ProviderConfig(binary="gemini", build_cmd=_build_gemini_cmd),
-    "cursor": ProviderConfig(binary="agent", build_cmd=_build_cursor_cmd),
+    "claude": ProviderConfig(binary="claude", build_cmd=_build_claude_cmd, parse_json=parse_claude_json),
+    "gemini": ProviderConfig(binary="gemini", build_cmd=_build_gemini_cmd, parse_json=parse_gemini_json),
+    "cursor": ProviderConfig(binary="agent", build_cmd=_build_cursor_cmd, parse_json=parse_cursor_json),
 }
 
 VALID_AI_PROVIDERS: frozenset[str] = frozenset(PROVIDERS.keys())

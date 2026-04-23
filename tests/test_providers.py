@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from ai_cli_runner.parsers import parse_claude_json, parse_cursor_json, parse_gemini_json
 from ai_cli_runner.providers import (
     PROVIDERS,
     VALID_AI_PROVIDERS,
@@ -27,6 +28,14 @@ class TestProviderConfig:
         config = ProviderConfig(binary="claude", build_cmd=_build_claude_cmd)
         cmd = config.build_cmd(config.binary, "opus-4", None, [])
         assert cmd == ["claude", "--model", "opus-4", "-p"]
+
+    async def test_parse_json_default_none(self) -> None:
+        config = ProviderConfig(binary="test", build_cmd=_build_claude_cmd)
+        assert config.parse_json is None
+
+    async def test_parse_json_attribute(self) -> None:
+        config = ProviderConfig(binary="test", build_cmd=_build_claude_cmd, parse_json=parse_claude_json)
+        assert config.parse_json is parse_claude_json
 
 
 class TestBuildClaudeCmd:
@@ -100,16 +109,19 @@ class TestProvidersDict:
         config = PROVIDERS["claude"]
         assert config.binary == "claude"
         assert config.build_cmd is _build_claude_cmd
+        assert config.parse_json is parse_claude_json
 
     async def test_gemini_provider(self) -> None:
         config = PROVIDERS["gemini"]
         assert config.binary == "gemini"
         assert config.build_cmd is _build_gemini_cmd
+        assert config.parse_json is parse_gemini_json
 
     async def test_cursor_provider(self) -> None:
         config = PROVIDERS["cursor"]
         assert config.binary == "agent"
         assert config.build_cmd is _build_cursor_cmd
+        assert config.parse_json is parse_cursor_json
 
     async def test_valid_ai_providers_matches_keys(self) -> None:
         assert set(PROVIDERS.keys()) == VALID_AI_PROVIDERS
