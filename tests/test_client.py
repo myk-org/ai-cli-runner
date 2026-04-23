@@ -216,8 +216,8 @@ class TestCallAiCli:
         mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout=claude_response, stderr="")
         result = await call_ai_cli(prompt="hello", ai_provider="claude", ai_model="opus-4", output_format="json")
         cmd = mock_run.call_args[0][0]
-        assert "--output-format" in cmd
-        assert "json" in cmd
+        idx = cmd.index("--output-format")
+        assert cmd[idx + 1] == "json"
         assert result.success is True
         assert result.text == "Hello!"
         assert result.usage is not None

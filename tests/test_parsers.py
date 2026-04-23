@@ -106,9 +106,9 @@ class TestExtractJson:
         with pytest.raises(json.JSONDecodeError):
             _extract_json("no json here at all")
 
-    def test_no_brace_raises(self) -> None:
+    def test_closing_brace_only_raises(self) -> None:
         with pytest.raises(json.JSONDecodeError):
-            _extract_json("just plain text")
+            _extract_json("text with } but no opening brace")
 
     def test_invalid_json_after_brace_raises(self) -> None:
         with pytest.raises(json.JSONDecodeError):
