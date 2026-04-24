@@ -8,7 +8,7 @@ Shared async Python package for calling AI CLI tools (Claude, Gemini, Cursor) vi
 import asyncio
 from pathlib import Path
 
-from ai_cli_runner import call_ai_cli, check_ai_cli_available, run_parallel_with_limit
+from ai_cli_runner import call_ai_cli, check_ai_cli_available, run_parallel_with_limit, AIResult, AITokenUsage
 
 
 async def main() -> None:
@@ -63,6 +63,80 @@ async def main() -> None:
 if __name__ == "__main__":
     asyncio.run(main())
 ```
+
+## JSON Output / Token Usage
+
+Pass `output_format="json"` to get structured token usage metadata from providers that support it. Parsing is best-effort — if the provider output can't be parsed, usage fields fall back to defaults.
+
+```python
+result = await call_ai_cli(
+    prompt="Analyze this code",
+    cwd=Path("/path/to/repo"),
+    ai_provider="claude",
+    ai_model="claude-sonnet-4-6",
+    output_format="json",
+)
+
+# Structured result
+print(result.success)              # True
+print(result.text)                 # "Analysis text..."
+print(result.usage.input_tokens)   # 1234
+print(result.usage.output_tokens)  # 567
+print(result.usage.cost_usd)       # 0.05
+print(result.usage.duration_ms)    # 3000
+print(result.usage.model)          # "claude-sonnet-4-6"
+```
+
+`AIResult` supports tuple unpacking and boolean evaluation for backward compatibility:
+
+```python
+# Tuple unpacking still works
+success, text = await call_ai_cli(
+    prompt="Hello",
+    ai_provider="claude",
+    ai_model="claude-sonnet-4-6",
+)
+
+# Boolean evaluation reflects success
+result = await call_ai_cli(...)
+if result:
+    print(result.text)
+```
+
+### `AIResult`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | `bool` | Whether the CLI call succeeded |
+| `text` | `str` | Output text from the AI |
+| `usage` | `AITokenUsage \| None` | Token usage metadata (when `output_format="json"`) |
+
+### `AITokenUsage`
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `input_tokens` | `int` | `0` | Tokens in the prompt |
+| `output_tokens` | `int` | `0` | Tokens in the response |
+| `cache_read_tokens` | `int` | `0` | Tokens read from cache |
+| `cache_write_tokens` | `int` | `0` | Tokens written to cache |
+| `cost_usd` | `float \| None` | `None` | Estimated cost in USD |
+| `duration_ms` | `int \| None` | `None` | Wall-clock duration in ms |
+| `model` | `str` | `""` | Model used |
+| `provider` | `str` | `""` | Provider name |
+
+### Provider Support Matrix
+
+Not all providers return the same metadata. Fields that a provider does not report will be `None` or `0`.
+
+| Field | Claude | Gemini | Cursor |
+|-------|--------|--------|--------|
+| `input_tokens` | ✅ | ✅ | ✅ |
+| `output_tokens` | ✅ | ✅ | ✅ |
+| `cache_read_tokens` | ✅ | ✅ | ✅ |
+| `cache_write_tokens` | ✅ | ❌ | ✅ |
+| `cost_usd` | ✅ | ❌ | ❌ |
+| `duration_ms` | ✅ | ✅ | ✅ |
+| `model` | ✅ | ✅ | ❌ |
 
 ## Supported Providers
 

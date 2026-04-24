@@ -15,6 +15,7 @@ from ai_cli_runner.client import (
     check_ai_cli_available,
     get_ai_cli_timeout,
 )
+from ai_cli_runner.models import AIResult
 
 
 async def fake_to_thread(func: Any, *args: Any, **kwargs: Any) -> Any:
@@ -186,6 +187,74 @@ class TestCallAiCli:
         success, output = await call_ai_cli(prompt="hello", ai_provider="claude", ai_model="opus-4", ai_cli_timeout=-5)
         assert success is False
         assert "Invalid ai_cli_timeout" in output
+
+    @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
+    @patch("ai_cli_runner.client._run_with_process_group")
+    async def test_returns_ai_result(self, mock_run: MagicMock, _mock_thread: MagicMock) -> None:
+        mock_run.return_value = _successful_run_result()
+        result = await call_ai_cli(prompt="hello", ai_provider="claude", ai_model="opus-4")
+        assert isinstance(result, AIResult)
+        assert result.success is True
+        assert result.text == "AI response"
+        assert result.usage is None
+
+    @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
+    @patch("ai_cli_runner.client._run_with_process_group")
+    async def test_output_format_json_adds_flag(self, mock_run: MagicMock, _mock_thread: MagicMock) -> None:
+        import json
+
+        claude_response = json.dumps(
+            {
+                "type": "result",
+                "result": "Hello!",
+                "duration_ms": 100,
+                "total_cost_usd": 0.01,
+                "usage": {"input_tokens": 5, "output_tokens": 3},
+                "modelUsage": {"opus-4": {}},
+            }
+        )
+        mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout=claude_response, stderr="")
+        result = await call_ai_cli(prompt="hello", ai_provider="claude", ai_model="opus-4", output_format="json")
+        cmd = mock_run.call_args[0][0]
+        idx = cmd.index("--output-format")
+        assert cmd[idx + 1] == "json"
+        assert result.success is True
+        assert result.text == "Hello!"
+        assert result.usage is not None
+        assert result.usage.input_tokens == 5
+        assert result.usage.output_tokens == 3
+
+    @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
+    @patch("ai_cli_runner.client._run_with_process_group")
+    async def test_output_format_json_with_cli_flags(self, mock_run: MagicMock, _mock_thread: MagicMock) -> None:
+        import json
+
+        claude_response = json.dumps({"result": "ok", "usage": {}, "modelUsage": {}})
+        mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout=claude_response, stderr="")
+        await call_ai_cli(
+            prompt="hello",
+            ai_provider="claude",
+            ai_model="opus-4",
+            output_format="json",
+            cli_flags=["--dangerously-skip-permissions"],
+        )
+        cmd = mock_run.call_args[0][0]
+        # --output-format json should be before the user's cli_flags
+        assert cmd == [
+            "claude",
+            "--model",
+            "opus-4",
+            "-p",
+            "--output-format",
+            "json",
+            "--dangerously-skip-permissions",
+        ]
+
+    async def test_error_returns_ai_result(self) -> None:
+        result = await call_ai_cli(prompt="hello", ai_provider="unknown", ai_model="model")
+        assert isinstance(result, AIResult)
+        assert result.success is False
+        assert "Unknown AI provider" in result.text
 
 
 class TestCheckAiCliAvailable:

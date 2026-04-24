@@ -8,7 +8,7 @@ commands = [
   [
     "uv",
     "run",
-    "--extra",
+    "--group",
     "dev",
     "pytest",
     "-n",
