@@ -1,7 +1,7 @@
 # ai-cli-runner
 
 ## What This Is
-Shared async Python package for calling AI CLI tools (Claude, Gemini, Cursor) via subprocess.
+Shared async Python package for calling AI CLI tools (Claude, Gemini, Cursor) via subprocess. Includes LLM cost calculation via LiteLLM pricing data with disk-based caching.
 
 ## Coding Principles
 - Never truncate data arbitrarily
@@ -13,7 +13,17 @@ Shared async Python package for calling AI CLI tools (Claude, Gemini, Cursor) vi
 
 ## Project Structure
 - `src/ai_cli_runner/` — package source
+  - `client.py` — main `call_ai_cli()` function, subprocess management
+  - `models.py` — `AIResult`, `AITokenUsage` dataclasses
+  - `providers.py` — provider configs (claude, gemini, cursor)
+  - `parsers.py` — JSON output parsers per provider
+  - `parallel.py` — `run_parallel_with_limit()` concurrency helper
+  - `llm_pricing.py` — LLM cost calculation via LiteLLM pricing data with disk cache
 - `tests/` — pytest test suite
+
+## Dependencies
+- `python-simple-logger` — logging
+- `httpx` — HTTP client for fetching LiteLLM pricing data
 
 ## Commands
 - Run tests: `uv run pytest`

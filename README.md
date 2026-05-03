@@ -134,9 +134,13 @@ Not all providers return the same metadata. Fields that a provider does not repo
 | `output_tokens` | ✅ | ✅ | ✅ |
 | `cache_read_tokens` | ✅ | ✅ | ✅ |
 | `cache_write_tokens` | ✅ | ❌ | ✅ |
-| `cost_usd` | ✅ | ❌ | ❌ |
+| `cost_usd` | ✅ | ✅ (calculated) | ✅ (calculated) |
 | `duration_ms` | ✅ | ✅ | ✅ |
 | `model` | ✅ | ✅ | ❌ |
+
+> **Note:** Claude reports `cost_usd` natively. For Gemini and Cursor, costs are calculated
+> using [LiteLLM pricing data](https://github.com/BerriAI/litellm). Call
+> `await pricing_cache.load()` at application startup to enable cost calculation.
 
 ## Supported Providers
 
