@@ -188,16 +188,9 @@ class LLMPricingCache:
                 return f"claude-{version_dashed}"
 
             if prefix == "gpt":
-                # GPT model ids have non-standard naming (e.g., "4o", "4o-mini")
-                # where all segments are part of the base name. Strip known routing
-                # suffixes and use everything remaining as the canonical key.
-                cleaned = rest
-                for suffix in self._CURSOR_ROUTING_SUFFIXES:
-                    suffix_bare = suffix.lstrip("-")
-                    if cleaned.endswith(f"-{suffix_bare}"):
-                        cleaned = cleaned[: -(len(suffix_bare) + 1)]
-                        break
-                return f"gpt-{cleaned}" if cleaned else f"gpt-{version}"
+                if variant:
+                    return f"gpt-{version}-{variant}"
+                return f"gpt-{version}"
 
             if prefix == "gemini":
                 if variant:

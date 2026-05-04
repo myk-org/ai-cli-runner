@@ -1,201 +1,109 @@
 # ai-cli-runner
 
-Shared async Python package for calling AI CLI tools (Claude, Gemini, Cursor) via subprocess.
+Async Python package for calling AI CLI tools (Claude, Gemini, Cursor) via subprocess. Includes LLM cost calculation via [LiteLLM pricing data](https://github.com/BerriAI/litellm) and model listing/validation.
 
-## Usage
+## Install
 
-```python
-import asyncio
-from pathlib import Path
-
-from ai_cli_runner import call_ai_cli, check_ai_cli_available, run_parallel_with_limit, AIResult, AITokenUsage
-
-
-async def main() -> None:
-    # Check if AI CLI is available
-    available, msg = await check_ai_cli_available(
-        ai_provider="claude",
-        ai_model="claude-sonnet-4-6",
-    )
-
-    # Call Claude
-    success, output = await call_ai_cli(
-        prompt="Analyze this code",
-        cwd=Path("/path/to/repo"),
-        ai_provider="claude",
-        ai_model="claude-sonnet-4-6",
-        cli_flags=["--dangerously-skip-permissions"],
-    )
-
-    # Call Gemini
-    success, output = await call_ai_cli(
-        prompt="Summarize this PR",
-        cwd=Path("/path/to/repo"),
-        ai_provider="gemini",
-        ai_model="gemini-2.5-flash",
-        cli_flags=["--yolo"],
-    )
-
-    # Call Cursor
-    success, output = await call_ai_cli(
-        prompt="Fix the failing test",
-        cwd=Path("/path/to/repo"),
-        ai_provider="cursor",
-        ai_model="sonnet-4.6",
-        cli_flags=["--force"],
-    )
-
-    # Run multiple calls in parallel with bounded concurrency
-    prompts = ["Analyze module A", "Analyze module B", "Analyze module C"]
-    results = await run_parallel_with_limit(
-        [
-            call_ai_cli(
-                prompt=p,
-                ai_provider="claude",
-                ai_model="claude-sonnet-4-6",
-            )
-            for p in prompts
-        ],
-        max_concurrency=5,
-    )
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+```bash
+uv add ai-cli-runner
 ```
 
-## JSON Output / Token Usage
-
-Pass `output_format="json"` to get structured token usage metadata from providers that support it. Parsing is best-effort — if the provider output can't be parsed, usage fields fall back to defaults.
+## Quick Start
 
 ```python
+from ai_cli_runner import call_ai_cli
+
 result = await call_ai_cli(
-    prompt="Analyze this code",
-    cwd=Path("/path/to/repo"),
+    prompt="What is the capital of France?",
     ai_provider="claude",
-    ai_model="claude-sonnet-4-6",
+    ai_model="claude-haiku-4-20250514",
     output_format="json",
 )
 
-# Structured result
-print(result.success)              # True
-print(result.text)                 # "Analysis text..."
-print(result.usage.input_tokens)   # 1234
-print(result.usage.output_tokens)  # 567
-print(result.usage.cost_usd)       # 0.05
-print(result.usage.duration_ms)    # 3000
-print(result.usage.model)          # "claude-sonnet-4-6"
-```
-
-`AIResult` supports tuple unpacking and boolean evaluation for backward compatibility:
-
-```python
-# Tuple unpacking still works
-success, text = await call_ai_cli(
-    prompt="Hello",
-    ai_provider="claude",
-    ai_model="claude-sonnet-4-6",
-)
-
-# Boolean evaluation reflects success
-result = await call_ai_cli(...)
 if result:
     print(result.text)
+    if result.usage:
+        print(f"Tokens: in={result.usage.input_tokens} out={result.usage.output_tokens}")
+        if result.usage.cost_usd is not None:
+            print(f"Cost: ${result.usage.cost_usd:.6f}")
 ```
+
+See [`examples/`](examples/) for complete usage:
+
+| Example | What it shows |
+|---------|---------------|
+| [`basic_call.py`](examples/basic_call.py) | Parallel calls to all 3 providers with token usage |
+| [`with_pricing.py`](examples/with_pricing.py) | LLM cost tracking via LiteLLM pricing |
+| [`model_listing.py`](examples/model_listing.py) | List models, validate names, check CLI availability |
+
+Run any example: `uv run examples/basic_call.py`
+
+## API
+
+### `call_ai_cli(prompt, cwd, ai_provider, ai_model, ai_cli_timeout, cli_flags, output_format) → AIResult`
+
+Call an AI CLI tool. Pass `output_format="json"` to get structured token usage.
+
+### `check_ai_cli_available(ai_provider, ai_model, cli_flags) → AIResult`
+
+Send a trivial prompt to verify the CLI is installed and working.
 
 ### `AIResult`
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | `bool` | Whether the CLI call succeeded |
-| `text` | `str` | Output text from the AI |
-| `usage` | `AITokenUsage \| None` | Token usage metadata (when `output_format="json"`) |
+| `success` | `bool` | Whether the call succeeded |
+| `text` | `str` | Response text |
+| `usage` | `AITokenUsage \| None` | Token usage (when `output_format="json"`) |
+
+Supports tuple unpacking (`success, text = await call_ai_cli(...)`) and boolean evaluation (`if result: ...`).
 
 ### `AITokenUsage`
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `input_tokens` | `int` | `0` | Tokens in the prompt |
-| `output_tokens` | `int` | `0` | Tokens in the response |
-| `cache_read_tokens` | `int` | `0` | Tokens read from cache |
-| `cache_write_tokens` | `int` | `0` | Tokens written to cache |
-| `cost_usd` | `float \| None` | `None` | Estimated cost in USD |
-| `duration_ms` | `int \| None` | `None` | Wall-clock duration in ms |
-| `model` | `str` | `""` | Model used |
-| `provider` | `str` | `""` | Provider name |
+| Field | Type | Description |
+|-------|------|-------------|
+| `input_tokens` | `int` | Tokens in the prompt |
+| `output_tokens` | `int` | Tokens in the response |
+| `cache_read_tokens` | `int` | Tokens read from cache |
+| `cache_write_tokens` | `int` | Tokens written to cache |
+| `cost_usd` | `float \| None` | Cost in USD (native or LiteLLM calculated) |
+| `duration_ms` | `int \| None` | Wall-clock duration |
+| `model` | `str` | Model used |
+| `provider` | `str` | Provider name |
 
-### Provider Support Matrix
+### Cost Calculation
 
-Not all providers return the same metadata. Fields that a provider does not report will be `None` or `0`.
+Claude reports cost natively. For Gemini and Cursor, costs are calculated using LiteLLM pricing data:
 
-| Field | Claude | Gemini | Cursor |
-|-------|--------|--------|--------|
-| `input_tokens` | ✅ | ✅ | ✅ |
-| `output_tokens` | ✅ | ✅ | ✅ |
-| `cache_read_tokens` | ✅ | ✅ | ✅ |
-| `cache_write_tokens` | ✅ | ❌ | ✅ |
-| `cost_usd` | ✅ | ✅ (calculated) | ✅ (calculated) |
-| `duration_ms` | ✅ | ✅ | ✅ |
-| `model` | ✅ | ✅ | ❌ |
+```python
+from ai_cli_runner import pricing_cache
 
-> **Note:** Claude reports `cost_usd` natively. For Gemini and Cursor, costs are calculated
-> using [LiteLLM pricing data](https://github.com/BerriAI/litellm). Call
-> `await pricing_cache.load()` at application startup to enable cost calculation.
+await pricing_cache.load()  # call once at startup
+# cost_usd is now auto-populated on all output_format="json" calls
+```
 
-## Model Listing & Validation
-
-Discover available models per provider and validate model names.
+### Model Listing & Validation
 
 ```python
 from ai_cli_runner import model_cache, pricing_cache
 
-
-async def main() -> None:
-    # Load pricing data (needed for Claude/Gemini model lists)
-    await pricing_cache.load()
-    model_cache.set_pricing_cache(pricing_cache)
-
-    # List available models
-    claude_models = await model_cache.list_models("claude")
-    gemini_models = await model_cache.list_models("gemini")
-    cursor_models = await model_cache.list_models("cursor")
-
-    for model in claude_models:
-        print(f"{model['id']} — {model['name']}")
-
-    # Validate a model name
-    is_valid = model_cache.is_valid_model("claude", "claude-sonnet-4-20250514")
-    # Returns: True, False, or None (if provider not yet listed)
-
-    # Refresh cached model lists
-    await model_cache.refresh()  # all previously listed providers
-    await model_cache.refresh("claude")  # single provider
+await pricing_cache.load()
+models = await model_cache.list_models("claude")
+is_valid = model_cache.is_valid_model("claude", "claude-haiku-4-20250514")
 ```
-
-### Data Sources
-
-| Provider | Source | Notes |
-|----------|--------|-------|
-| `claude` | LiteLLM pricing data | Requires `pricing_cache.load()` |
-| `gemini` | LiteLLM pricing data | Requires `pricing_cache.load()` |
-| `cursor` | `agent models` subprocess | Requires Cursor CLI installed |
-
-Model lists are cached for 1 hour (TTL-based).
 
 ## Supported Providers
 
 | Provider | Binary | Notes |
 |----------|--------|-------|
-| `claude` | `claude` | Uses stdin prompt |
-| `gemini` | `gemini` | Uses stdin prompt |
-| `cursor` | `agent` | Uses `--workspace` for cwd |
+| `claude` | `claude` | `-p` flag for non-interactive mode |
+| `gemini` | `gemini` | Stdin prompt |
+| `cursor` | `agent` | `--workspace` for cwd |
 
 ## Environment Variables
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `AI_PROVIDER` | `claude` | Which AI CLI to use |
-| `AI_MODEL` | (empty) | Model name to pass to the CLI |
 | `AI_CLI_TIMEOUT` | `10` | Timeout in minutes for AI CLI calls |
 
 ## Development

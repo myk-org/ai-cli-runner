@@ -356,17 +356,170 @@ class TestModelLookup:
         assert result is not None
         assert result["input_cost_per_token"] == 0.00000015
 
-    def test_resolve_cursor_gpt4o_mini_direct(self) -> None:
-        """_resolve_cursor_model correctly resolves gpt-4o-mini (no suffix)."""
+    def test_resolve_cursor_gpt_with_variant(self) -> None:
+        """gpt-5.4-nano-none → gpt-5.4-nano via variant extraction."""
         cache = LLMPricingCache()
-        resolved = cache._resolve_cursor_model("gpt-4o-mini")
-        assert resolved == "gpt-4o-mini"
+        resolved = cache._resolve_cursor_model("gpt-5.4-nano-none")
+        assert resolved == "gpt-5.4-nano"
 
-    def test_resolve_cursor_gpt4o_direct(self) -> None:
-        """_resolve_cursor_model correctly resolves gpt-4o (no suffix)."""
+    # --- Direct _resolve_cursor_model: GPT ---
+
+    def test_resolve_cursor_gpt_version_only(self) -> None:
+        """gpt-4-fast → gpt-4 (version only, no variant, strip suffix)."""
         cache = LLMPricingCache()
-        resolved = cache._resolve_cursor_model("gpt-4o")
-        assert resolved == "gpt-4o"
+        resolved = cache._resolve_cursor_model("gpt-4-fast")
+        assert resolved == "gpt-4"
+
+    def test_resolve_cursor_gpt_version_variant(self) -> None:
+        """gpt-4-mini-fast → gpt-4-mini (version + variant)."""
+        cache = LLMPricingCache()
+        resolved = cache._resolve_cursor_model("gpt-4-mini-fast")
+        assert resolved == "gpt-4-mini"
+
+    def test_resolve_cursor_gpt_decimal_version(self) -> None:
+        """gpt-5.4-nano-none → gpt-5.4-nano (decimal version + variant)."""
+        cache = LLMPricingCache()
+        resolved = cache._resolve_cursor_model("gpt-5.4-nano-none")
+        assert resolved == "gpt-5.4-nano"
+
+    def test_resolve_cursor_gpt_no_variant_no_suffix(self) -> None:
+        """gpt-4 → gpt-4 (bare, no variant, no suffix)."""
+        cache = LLMPricingCache()
+        resolved = cache._resolve_cursor_model("gpt-4")
+        assert resolved == "gpt-4"
+
+    def test_resolve_cursor_gpt_variant_no_suffix(self) -> None:
+        """gpt-4-mini → gpt-4-mini (variant, no routing suffix)."""
+        cache = LLMPricingCache()
+        resolved = cache._resolve_cursor_model("gpt-4-mini")
+        assert resolved == "gpt-4-mini"
+
+    def test_resolve_cursor_gpt_xhigh_fast_suffix(self) -> None:
+        """gpt-5.4-nano-xhigh-fast → gpt-5.4-nano."""
+        cache = LLMPricingCache()
+        resolved = cache._resolve_cursor_model("gpt-5.4-nano-xhigh-fast")
+        assert resolved == "gpt-5.4-nano"
+
+    def test_resolve_cursor_gpt_max_thinking_suffix(self) -> None:
+        """gpt-5.4-nano-max-thinking → gpt-5.4-nano."""
+        cache = LLMPricingCache()
+        resolved = cache._resolve_cursor_model("gpt-5.4-nano-max-thinking")
+        assert resolved == "gpt-5.4-nano"
+
+    # --- Direct _resolve_cursor_model: Claude ---
+
+    def test_resolve_cursor_claude_version_variant(self) -> None:
+        """claude-4.6-opus-max-thinking → claude-opus-4-6."""
+        cache = LLMPricingCache()
+        resolved = cache._resolve_cursor_model("claude-4.6-opus-max-thinking")
+        assert resolved == "claude-opus-4-6"
+
+    def test_resolve_cursor_claude_version_only(self) -> None:
+        """claude-4.6-fast → claude-4-6 (no variant, strip suffix)."""
+        cache = LLMPricingCache()
+        resolved = cache._resolve_cursor_model("claude-4.6-fast")
+        assert resolved == "claude-4-6"
+
+    def test_resolve_cursor_claude_sonnet(self) -> None:
+        """claude-4-sonnet-xhigh → claude-sonnet-4."""
+        cache = LLMPricingCache()
+        resolved = cache._resolve_cursor_model("claude-4-sonnet-xhigh")
+        assert resolved == "claude-sonnet-4"
+
+    def test_resolve_cursor_claude_haiku(self) -> None:
+        """claude-4.5-haiku → claude-haiku-4-5."""
+        cache = LLMPricingCache()
+        resolved = cache._resolve_cursor_model("claude-4.5-haiku")
+        assert resolved == "claude-haiku-4-5"
+
+    def test_resolve_cursor_claude_bare(self) -> None:
+        """claude-4 → claude-4."""
+        cache = LLMPricingCache()
+        resolved = cache._resolve_cursor_model("claude-4")
+        assert resolved == "claude-4"
+
+    # --- Direct _resolve_cursor_model: Gemini ---
+
+    def test_resolve_cursor_gemini_version_variant(self) -> None:
+        """gemini-2.5-flash-fast → gemini-2.5-flash."""
+        cache = LLMPricingCache()
+        resolved = cache._resolve_cursor_model("gemini-2.5-flash-fast")
+        assert resolved == "gemini-2.5-flash"
+
+    def test_resolve_cursor_gemini_pro(self) -> None:
+        """gemini-2.5-pro-xhigh → gemini-2.5-pro."""
+        cache = LLMPricingCache()
+        resolved = cache._resolve_cursor_model("gemini-2.5-pro-xhigh")
+        assert resolved == "gemini-2.5-pro"
+
+    def test_resolve_cursor_gemini_bare(self) -> None:
+        """gemini-2.5 → gemini-2.5."""
+        cache = LLMPricingCache()
+        resolved = cache._resolve_cursor_model("gemini-2.5")
+        assert resolved == "gemini-2.5"
+
+    # --- Direct _resolve_cursor_model: Edge cases ---
+
+    def test_resolve_cursor_unknown_prefix(self) -> None:
+        """unknown-model → None."""
+        cache = LLMPricingCache()
+        resolved = cache._resolve_cursor_model("unknown-model")
+        assert resolved is None
+
+    def test_resolve_cursor_no_version(self) -> None:
+        """claude-abc → None (no version number)."""
+        cache = LLMPricingCache()
+        resolved = cache._resolve_cursor_model("claude-abc")
+        assert resolved is None
+
+    # --- End-to-end _lookup_model for Cursor ---
+
+    def test_lookup_cursor_gpt_via_suffix_stripping(self) -> None:
+        """gpt-4o-mini-fast matches gpt-4o-mini via suffix stripping (not resolver)."""
+        cache = LLMPricingCache()
+        cache._data = {
+            "gpt-4o-mini": {"input_cost_per_token": 0.00000015, "output_cost_per_token": 0.0000006},
+        }
+        result = cache._lookup_model("cursor", "gpt-4o-mini-fast")
+        assert result is not None
+        assert result["input_cost_per_token"] == 0.00000015
+
+    def test_lookup_cursor_gpt_via_resolver(self) -> None:
+        """gpt-5.4-nano-none matches gpt-5.4-nano via resolver variant extraction."""
+        cache = LLMPricingCache()
+        cache._data = {
+            "gpt-5.4-nano": {"input_cost_per_token": 0.0000001, "output_cost_per_token": 0.0000004},
+        }
+        result = cache._lookup_model("cursor", "gpt-5.4-nano-none")
+        assert result is not None
+        assert result["input_cost_per_token"] == 0.0000001
+
+    def test_lookup_cursor_claude_via_resolver(self) -> None:
+        """claude-4.5-haiku-max-thinking matches claude-haiku-4-5 via resolver."""
+        cache = LLMPricingCache()
+        cache._data = {
+            "claude-haiku-4-5": {"input_cost_per_token": 0.000001, "output_cost_per_token": 0.000005},
+        }
+        result = cache._lookup_model("cursor", "claude-4.5-haiku-max-thinking")
+        assert result is not None
+        assert result["input_cost_per_token"] == 0.000001
+
+    def test_lookup_cursor_gemini_via_resolver(self) -> None:
+        """gemini-2.5-pro-xhigh-fast matches gemini-2.5-pro via suffix strip + resolver."""
+        cache = LLMPricingCache()
+        cache._data = {
+            "gemini-2.5-pro": {"input_cost_per_token": 0.000001, "output_cost_per_token": 0.000004},
+        }
+        result = cache._lookup_model("cursor", "gemini-2.5-pro-xhigh-fast")
+        assert result is not None
+        assert result["input_cost_per_token"] == 0.000001
+
+    def test_lookup_cursor_no_match(self) -> None:
+        """Completely unknown cursor model returns None."""
+        cache = LLMPricingCache()
+        cache._data = SAMPLE_PRICING_DATA
+        result = cache._lookup_model("cursor", "totally-unknown-model-xyz")
+        assert result is None
 
 
 # ── Background refresh ───────────────────────────────────────────────
