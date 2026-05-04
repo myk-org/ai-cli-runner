@@ -6,11 +6,13 @@ errors are logged but never raised.
 """
 
 import asyncio
+import contextlib
 import json
 import os
 import re
 import time
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, ClassVar
 
 import httpx
@@ -33,17 +35,20 @@ class LLMPricingCache:
         self._refresh_task: asyncio.Task[None] | None = None
 
     @property
-    def data(self) -> dict[str, Any]:
-        """Return the raw pricing data dict. Empty dict if not loaded."""
-        return self._data
+    def data(self) -> MappingProxyType[str, Any]:
+        """Return a read-only view of the pricing data. Empty if not loaded."""
+        return MappingProxyType(self._data)
 
     async def load(self) -> None:
         """Initial fetch at startup. Best-effort — logs and continues on failure."""
         await self._fetch()
 
     async def refresh(self) -> None:
-        """Re-fetch pricing data. Best-effort — logs and continues on failure."""
-        await self._fetch()
+        """Force re-fetch pricing data from network, bypassing disk cache freshness.
+
+        Best-effort — logs and continues on failure.
+        """
+        await self._fetch(force_network=True)
 
     def _read_disk_cache(self) -> dict[str, Any] | None:
         """Read pricing data from disk cache. Returns None on any failure."""
@@ -84,11 +89,11 @@ class LLMPricingCache:
             logger.debug("Failed to check disk cache age", exc_info=True)
         return False
 
-    async def _fetch(self) -> None:
+    async def _fetch(self, *, force_network: bool = False) -> None:
         """Fetch pricing JSON from LiteLLM GitHub with disk cache. Never raises."""
         try:
-            # Check disk cache first
-            if self._is_disk_cache_fresh():
+            # Check disk cache first (skip when force_network=True)
+            if not force_network and self._is_disk_cache_fresh():
                 data = self._read_disk_cache()
                 if data is not None:
                     self._data = data
@@ -173,9 +178,16 @@ class LLMPricingCache:
                 return f"claude-{version_dashed}"
 
             if prefix == "gpt":
-                if variant:
-                    return f"gpt-{version}-{variant}"
-                return f"gpt-{version}"
+                # GPT model ids have non-standard naming (e.g., "4o", "4o-mini")
+                # where all segments are part of the base name. Strip known routing
+                # suffixes and use everything remaining as the canonical key.
+                cleaned = rest
+                for suffix in self._CURSOR_ROUTING_SUFFIXES:
+                    suffix_bare = suffix.lstrip("-")
+                    if cleaned.endswith(f"-{suffix_bare}"):
+                        cleaned = cleaned[: -(len(suffix_bare) + 1)]
+                        break
+                return f"gpt-{cleaned}" if cleaned else f"gpt-{version}"
 
             if prefix == "gemini":
                 if variant:
@@ -306,19 +318,22 @@ class LLMPricingCache:
             )
             return None
 
-    def start_background_refresh(self) -> None:
+    async def start_background_refresh(self) -> None:
         """Start a background task that refreshes pricing data every 24 hours.
 
         Safe to call multiple times — cancels any existing task first.
         """
-        self.stop_background_refresh()
+        await self.stop_background_refresh()
         self._refresh_task = asyncio.create_task(self._refresh_loop())
 
-    def stop_background_refresh(self) -> None:
-        """Cancel the background refresh task if running."""
+    async def stop_background_refresh(self) -> None:
+        """Cancel the background refresh task and wait for it to finish."""
         if self._refresh_task is not None:
             self._refresh_task.cancel()
+            task = self._refresh_task
             self._refresh_task = None
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
     async def _refresh_loop(self) -> None:
         """Periodically refresh pricing data. Never raises."""

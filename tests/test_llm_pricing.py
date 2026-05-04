@@ -175,6 +175,27 @@ class TestDiskCaching:
 
             assert cache._data == {}
 
+    async def test_refresh_bypasses_fresh_disk_cache(self) -> None:
+        """refresh() fetches from HTTP even when disk cache is fresh."""
+        cache = LLMPricingCache()
+        mock_response = _make_mock_response(SAMPLE_PRICING_DATA)
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with (
+            patch.object(cache, "_is_disk_cache_fresh", return_value=True),
+            patch.object(cache, "_write_disk_cache"),
+            patch("ai_cli_runner.llm_pricing.httpx.AsyncClient", return_value=mock_client),
+        ):
+            await cache.refresh()
+
+            # HTTP should be called even though disk cache is fresh
+            mock_client.get.assert_called_once()
+            assert cache._data == SAMPLE_PRICING_DATA
+
 
 # ── Cost calculation ──────────────────────────────────────────────────
 
@@ -312,6 +333,20 @@ class TestModelLookup:
         assert result is not None
         assert result["input_cost_per_token"] == 0.000015
 
+    def test_resolve_cursor_gpt4o_model(self) -> None:
+        """gpt-4o-mini-fast → gpt-4o-mini (not gpt-4)."""
+        cache = LLMPricingCache()
+        cache._data = {
+            "gpt-4o-mini": {
+                "input_cost_per_token": 0.00000015,
+                "output_cost_per_token": 0.0000006,
+            },
+        }
+
+        result = cache._lookup_model("cursor", "gpt-4o-mini-fast")
+        assert result is not None
+        assert result["input_cost_per_token"] == 0.00000015
+
     def test_resolve_cursor_gemini_model(self) -> None:
         """gemini-2.5-flash-fast → gemini-2.5-flash."""
         cache = LLMPricingCache()
@@ -320,6 +355,18 @@ class TestModelLookup:
         result = cache._lookup_model("cursor", "gemini-2.5-flash-fast")
         assert result is not None
         assert result["input_cost_per_token"] == 0.00000015
+
+    def test_resolve_cursor_gpt4o_mini_direct(self) -> None:
+        """_resolve_cursor_model correctly resolves gpt-4o-mini (no suffix)."""
+        cache = LLMPricingCache()
+        resolved = cache._resolve_cursor_model("gpt-4o-mini")
+        assert resolved == "gpt-4o-mini"
+
+    def test_resolve_cursor_gpt4o_direct(self) -> None:
+        """_resolve_cursor_model correctly resolves gpt-4o (no suffix)."""
+        cache = LLMPricingCache()
+        resolved = cache._resolve_cursor_model("gpt-4o")
+        assert resolved == "gpt-4o"
 
 
 # ── Background refresh ───────────────────────────────────────────────
@@ -331,14 +378,14 @@ class TestBackgroundRefresh:
         cache = LLMPricingCache()
 
         with patch.object(cache, "refresh", new_callable=AsyncMock) as mock_refresh:
-            cache.start_background_refresh()
+            await cache.start_background_refresh()
             assert cache._refresh_task is not None
             assert not cache._refresh_task.done()
 
             # Give the loop a moment to call refresh at least once
             await asyncio.sleep(0.05)
 
-            cache.stop_background_refresh()
+            await cache.stop_background_refresh()
             assert cache._refresh_task is None
 
             # The refresh should have been called at least once

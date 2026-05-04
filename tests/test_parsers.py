@@ -299,7 +299,7 @@ class TestParseGeminiJson:
         assert usage.output_tokens == (50 + 127) + (24 + 0)  # candidates + thoughts per model
         assert usage.cache_read_tokens == 0
         assert usage.duration_ms == 1386 + 1124  # sum of latencies
-        assert usage.model == "gemini-2.5-flash-lite, gemini-3-flash-preview"
+        assert usage.model == "gemini-2.5-flash-lite"
         assert usage.provider == "gemini"
 
 

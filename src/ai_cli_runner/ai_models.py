@@ -20,6 +20,8 @@ from typing import TYPE_CHECKING, Any
 from simple_logger.logger import get_logger
 
 if TYPE_CHECKING:
+    from types import MappingProxyType
+
     from ai_cli_runner.llm_pricing import LLMPricingCache
 
 logger = get_logger(name=__name__, level=os.environ.get("LOG_LEVEL", "INFO"))
@@ -303,7 +305,7 @@ class AIModelCache:
 
     # -- Helpers --------------------------------------------------------------
 
-    def _get_pricing_data(self) -> dict[str, Any] | None:
+    def _get_pricing_data(self) -> MappingProxyType[str, Any] | None:
         """Return the raw pricing data dict from the pricing cache, or None."""
         if self._pricing_cache is None:
             return None
