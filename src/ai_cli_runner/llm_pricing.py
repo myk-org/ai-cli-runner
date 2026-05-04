@@ -32,6 +32,11 @@ class LLMPricingCache:
         self._data: dict[str, Any] = {}
         self._refresh_task: asyncio.Task[None] | None = None
 
+    @property
+    def data(self) -> dict[str, Any]:
+        """Return the raw pricing data dict. Empty dict if not loaded."""
+        return self._data
+
     async def load(self) -> None:
         """Initial fetch at startup. Best-effort — logs and continues on failure."""
         await self._fetch()

@@ -142,6 +142,46 @@ Not all providers return the same metadata. Fields that a provider does not repo
 > using [LiteLLM pricing data](https://github.com/BerriAI/litellm). Call
 > `await pricing_cache.load()` at application startup to enable cost calculation.
 
+## Model Listing & Validation
+
+Discover available models per provider and validate model names.
+
+```python
+from ai_cli_runner import model_cache, pricing_cache
+
+
+async def main() -> None:
+    # Load pricing data (needed for Claude/Gemini model lists)
+    await pricing_cache.load()
+    model_cache.set_pricing_cache(pricing_cache)
+
+    # List available models
+    claude_models = await model_cache.list_models("claude")
+    gemini_models = await model_cache.list_models("gemini")
+    cursor_models = await model_cache.list_models("cursor")
+
+    for model in claude_models:
+        print(f"{model['id']} — {model['name']}")
+
+    # Validate a model name
+    is_valid = model_cache.is_valid_model("claude", "claude-sonnet-4-20250514")
+    # Returns: True, False, or None (if provider not yet listed)
+
+    # Refresh cached model lists
+    await model_cache.refresh()  # all previously listed providers
+    await model_cache.refresh("claude")  # single provider
+```
+
+### Data Sources
+
+| Provider | Source | Notes |
+|----------|--------|-------|
+| `claude` | LiteLLM pricing data | Requires `pricing_cache.load()` |
+| `gemini` | LiteLLM pricing data | Requires `pricing_cache.load()` |
+| `cursor` | `agent models` subprocess | Requires Cursor CLI installed |
+
+Model lists are cached for 1 hour (TTL-based).
+
 ## Supported Providers
 
 | Provider | Binary | Notes |

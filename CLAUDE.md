@@ -19,6 +19,7 @@ Shared async Python package for calling AI CLI tools (Claude, Gemini, Cursor) vi
   - `parsers.py` — JSON output parsers per provider
   - `parallel.py` — `run_parallel_with_limit()` concurrency helper
   - `llm_pricing.py` — LLM cost calculation via LiteLLM pricing data with disk cache
+  - `ai_models.py` — `AIModelCache` for model listing and validation per provider
 - `tests/` — pytest test suite
 
 ## Dependencies
