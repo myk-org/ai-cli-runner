@@ -145,7 +145,7 @@ class AIModelCache:
         """
         provider = provider.lower().strip()
         entry = self._cache.get(provider)
-        if entry is None:
+        if entry is None or not entry["models"]:
             return None
         model_ids = {m["id"] for m in entry["models"]}
         return model in model_ids
@@ -216,11 +216,11 @@ class AIModelCache:
         Skips the first line (header) and last line (tip).
         """
         lines = [line.strip() for line in output.strip().splitlines() if line.strip()]
-        if len(lines) <= 2:
+        if not lines:
             return []
 
-        # Skip header (first line) and footer (last line)
-        model_lines = lines[1:-1]
+        # Filter by content — skip header and footer lines
+        model_lines = [line for line in lines if not line.lower().startswith(("available model", "tip:"))]
         models: list[dict[str, str]] = []
         for line in model_lines:
             if " - " in line:

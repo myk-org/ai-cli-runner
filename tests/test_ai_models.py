@@ -109,7 +109,7 @@ class TestParseCursorOutput:
 
     def test_parse_empty(self) -> None:
         assert AIModelCache._parse_cursor_output("") == []
-        assert AIModelCache._parse_cursor_output("Header\nFooter") == []
+        assert AIModelCache._parse_cursor_output("Available models\nTip: use --model") == []
 
     def test_parse_no_separator(self) -> None:
         output = "Available models\nsome-model\nTip: use --model"
