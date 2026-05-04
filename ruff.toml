@@ -8,4 +8,6 @@ select = ["E", "F", "W", "I", "UP", "S", "B", "A", "BLE", "C4", "SIM", "TCH", "R
 ignore = ["S603", "S607"]
 
 [lint.per-file-ignores]
+"src/ai_cli_runner/ai_models.py" = ["BLE001"]  # Best-effort methods intentionally catch broad exceptions
+"src/ai_cli_runner/llm_pricing.py" = ["BLE001"]  # Best-effort methods intentionally catch broad exceptions
 "tests/**" = ["S101"]

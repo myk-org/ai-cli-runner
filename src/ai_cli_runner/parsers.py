@@ -75,7 +75,9 @@ def parse_gemini_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage
 
     Note: text field is 'response' not 'result'.
     Note: Gemini may use multiple models (e.g., router + main); tokens and
-          duration are aggregated across all models.
+          duration are aggregated across all models. The primary model (highest
+          output tokens) is used for cost calculation, so multi-model costs are
+          approximate (single rate card applied to summed tokens).
     Note: output tokens are 'candidates' + 'thoughts' (thinking model tokens).
     """
     data = _extract_json(raw_output)
@@ -88,17 +90,24 @@ def parse_gemini_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage
     total_output = 0
     total_cached = 0
     total_duration = 0
-    model_names = []
+    primary_model = ""
+    primary_output = -1
 
     for model_name, model_data in models.items():
-        model_names.append(model_name)
         tokens = model_data.get("tokens", {})
         api = model_data.get("api", {})
 
+        model_output = tokens.get("candidates", 0) + tokens.get("thoughts", 0)
         total_input += tokens.get("input", 0)
-        total_output += tokens.get("candidates", 0) + tokens.get("thoughts", 0)
+        total_output += model_output
         total_cached += tokens.get("cached", 0)
         total_duration += api.get("totalLatencyMs", 0)
+
+        # Track the primary model (highest output tokens) for pricing lookup.
+        # On tie, prefer lexicographically smaller name for determinism.
+        if model_output > primary_output or (model_output == primary_output and model_name < primary_model):
+            primary_output = model_output
+            primary_model = model_name
 
     usage = AITokenUsage(
         input_tokens=total_input,
@@ -106,7 +115,7 @@ def parse_gemini_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage
         cache_read_tokens=total_cached,
         cache_write_tokens=0,
         duration_ms=total_duration if total_duration > 0 else None,
-        model=", ".join(model_names),
+        model=primary_model,
         provider=provider,
     )
     return text, usage

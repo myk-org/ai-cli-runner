@@ -8,6 +8,7 @@ from typing import Literal
 
 from simple_logger.logger import get_logger
 
+from ai_cli_runner.llm_pricing import pricing_cache
 from ai_cli_runner.models import AIResult
 from ai_cli_runner.parsers import parse_json_output
 from ai_cli_runner.providers import PROVIDERS, VALID_AI_PROVIDERS, ProviderConfig
@@ -159,6 +160,11 @@ async def call_ai_cli(
     Returns:
         AIResult with success status, text output, and optional usage metadata.
         Supports tuple unpacking: success, text = await call_ai_cli(...)
+
+    Note:
+        Cost calculation via LiteLLM pricing requires ``await pricing_cache.load()``
+        at application startup. Without it, ``cost_usd`` will only be populated
+        for providers that report it natively (e.g., Claude).
     """
     valid, error_msg, config = _validate_provider_and_model(ai_provider, ai_model)
     if not valid:
@@ -238,6 +244,15 @@ async def call_ai_cli(
 
     if output_format:
         text, usage = parse_json_output(result.stdout, ai_provider)
+        if usage is not None and usage.cost_usd is None:
+            usage.cost_usd = pricing_cache.calculate_cost(
+                provider=usage.provider or ai_provider,
+                model=usage.model or ai_model,
+                input_tokens=usage.input_tokens,
+                output_tokens=usage.output_tokens,
+                cache_read_tokens=usage.cache_read_tokens,
+                cache_write_tokens=usage.cache_write_tokens,
+            )
         if usage is None:
             logger.debug(
                 "%s: output_format=%r requested but no usage parsed; raw output length=%d",
