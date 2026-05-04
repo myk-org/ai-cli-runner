@@ -27,6 +27,17 @@ _CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "a
 _CACHE_FILE = _CACHE_DIR / "litellm_pricing.json"
 
 
+def _deep_freeze(obj: Any) -> Any:
+    """Recursively freeze a nested structure for read-only access."""
+    if isinstance(obj, dict):
+        return MappingProxyType({k: _deep_freeze(v) for k, v in obj.items()})
+    if isinstance(obj, list):
+        return tuple(_deep_freeze(item) for item in obj)
+    if isinstance(obj, set):
+        return frozenset(_deep_freeze(item) for item in obj)
+    return obj
+
+
 class LLMPricingCache:
     """In-memory cache for LLM model pricing data from LiteLLM."""
 
@@ -36,8 +47,8 @@ class LLMPricingCache:
 
     @property
     def data(self) -> MappingProxyType[str, Any]:
-        """Return a read-only view of the pricing data. Empty if not loaded."""
-        return MappingProxyType(self._data)
+        """Return a deeply frozen read-only view of the pricing data. Empty if not loaded."""
+        return _deep_freeze(self._data)
 
     async def load(self) -> None:
         """Initial fetch at startup. Best-effort — logs and continues on failure."""
@@ -110,9 +121,8 @@ class LLMPricingCache:
                         self._data = data
                         self._write_disk_cache(data)
                         logger.debug("LLM pricing cache loaded: %d models", len(self._data))
-                    else:
-                        logger.warning("LLM pricing data is not a dict, ignoring")
-                    return
+                        return
+                    logger.warning("LLM pricing data is not a dict, ignoring")
             except Exception:
                 logger.warning("Failed to fetch LLM pricing data from HTTP", exc_info=True)
 

@@ -76,8 +76,8 @@ def _kill_process(proc: asyncio.subprocess.Process) -> None:
         if proc.pid is not None:
             pgid = os.getpgid(proc.pid)
             os.killpg(pgid, 9)  # SIGKILL the process group
-    except (OSError, ProcessLookupError):
-        # Process already gone
+    except (OSError, ProcessLookupError, AttributeError):
+        # Process already gone or POSIX API not available
         with contextlib.suppress(OSError, ProcessLookupError):
             proc.kill()
 
@@ -113,13 +113,14 @@ class AIModelCache:
                     len(entry["models"]),
                     age,
                 )
-                return entry["models"]
+                return [model.copy() for model in entry["models"]]
             logger.debug("Cache expired for provider=%s (age=%.0fs)", provider, age)
 
         models = await self._fetch_models(provider)
-        self._cache[provider] = {"models": models, "fetched_at": time.monotonic()}
+        cached_models = [model.copy() for model in models]
+        self._cache[provider] = {"models": cached_models, "fetched_at": time.monotonic()}
         logger.debug("Fetched %d models for provider=%s", len(models), provider)
-        return models
+        return [model.copy() for model in cached_models]
 
     async def refresh(self, provider: str | None = None) -> None:
         """Refresh the cache for one or all providers.
@@ -315,5 +316,10 @@ class AIModelCache:
         return data
 
 
-# Module-level singleton
+# Module-level singleton — auto-wired to the pricing cache so Claude/Gemini
+# model listing works out of the box after `await pricing_cache.load()`.
 model_cache = AIModelCache()
+
+from ai_cli_runner.llm_pricing import pricing_cache  # noqa: E402
+
+model_cache.set_pricing_cache(pricing_cache)
