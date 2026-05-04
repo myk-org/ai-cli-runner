@@ -460,6 +460,30 @@ class TestModelLookup:
 
     # --- Direct _resolve_cursor_model: Edge cases ---
 
+    def test_resolve_cursor_gpt4o(self) -> None:
+        """gpt-4o → gpt-4o (alphanumeric version)."""
+        cache = LLMPricingCache()
+        resolved = cache._resolve_cursor_model("gpt-4o")
+        assert resolved == "gpt-4o"
+
+    def test_resolve_cursor_gpt4o_mini(self) -> None:
+        """gpt-4o-mini → gpt-4o-mini (alphanumeric version + variant)."""
+        cache = LLMPricingCache()
+        resolved = cache._resolve_cursor_model("gpt-4o-mini")
+        assert resolved == "gpt-4o-mini"
+
+    def test_resolve_cursor_gpt4o_fast(self) -> None:
+        """gpt-4o-fast → gpt-4o (strip routing suffix)."""
+        cache = LLMPricingCache()
+        resolved = cache._resolve_cursor_model("gpt-4o-fast")
+        assert resolved == "gpt-4o"
+
+    def test_resolve_cursor_gpt4o_mini_fast(self) -> None:
+        """gpt-4o-mini-fast → gpt-4o-mini (variant + strip suffix)."""
+        cache = LLMPricingCache()
+        resolved = cache._resolve_cursor_model("gpt-4o-mini-fast")
+        assert resolved == "gpt-4o-mini"
+
     def test_resolve_cursor_unknown_prefix(self) -> None:
         """unknown-model → None."""
         cache = LLMPricingCache()

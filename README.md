@@ -11,21 +11,25 @@ uv add ai-cli-runner
 ## Quick Start
 
 ```python
+import asyncio
 from ai_cli_runner import call_ai_cli
 
-result = await call_ai_cli(
-    prompt="What is the capital of France?",
-    ai_provider="claude",
-    ai_model="claude-haiku-4-20250514",
-    output_format="json",
-)
+async def main():
+    result = await call_ai_cli(
+        prompt="What is the capital of France?",
+        ai_provider="claude",
+        ai_model="claude-haiku-4-20250514",
+        output_format="json",
+    )
 
-if result:
-    print(result.text)
-    if result.usage:
-        print(f"Tokens: in={result.usage.input_tokens} out={result.usage.output_tokens}")
-        if result.usage.cost_usd is not None:
-            print(f"Cost: ${result.usage.cost_usd:.6f}")
+    if result.success:
+        print(result.text)
+        if result.usage:
+            print(f"Tokens: in={result.usage.input_tokens} out={result.usage.output_tokens}")
+            if result.usage.cost_usd is not None:
+                print(f"Cost: ${result.usage.cost_usd:.6f}")
+
+asyncio.run(main())
 ```
 
 See [`examples/`](examples/) for complete usage:

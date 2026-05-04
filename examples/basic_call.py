@@ -52,7 +52,7 @@ async def main() -> None:
         model = result.usage.model if result.usage else "unknown"
         prefix = f"[{provider}/{model}]"
 
-        if result:
+        if result.success:
             print(f"{prefix} {result.text}")
             if result.usage:
                 print(f"{prefix} Tokens: in={result.usage.input_tokens} out={result.usage.output_tokens}")

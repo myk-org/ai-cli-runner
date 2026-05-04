@@ -48,7 +48,7 @@ async def main() -> None:
         model = result.usage.model if result.usage else "unknown"
 
         print(f"\n--- {provider}/{model} ---")
-        if result and result.usage:
+        if result.success and result.usage:
             print(f"Response:      {result.text}")
             print(f"Input tokens:  {result.usage.input_tokens}")
             print(f"Output tokens: {result.usage.output_tokens}")
@@ -56,15 +56,18 @@ async def main() -> None:
                 print(f"Cost:          ${result.usage.cost_usd:.6f}")
             else:
                 print("Cost:          N/A")
-        elif result:
+        elif result.success:
             print(f"Response: {result.text}")
         else:
             print(f"Error: {result.text}")
 
-    # For long-running apps, start background refresh (every 24h)
-    await pricing_cache.start_background_refresh()
-    # ... app runs ...
-    await pricing_cache.stop_background_refresh()
+    # For long-running apps, refresh pricing in the background:
+    #
+    #   await pricing_cache.start_background_refresh()
+    #   try:
+    #       await run_app()  # your app logic here
+    #   finally:
+    #       await pricing_cache.stop_background_refresh()
 
 
 if __name__ == "__main__":

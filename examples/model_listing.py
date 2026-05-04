@@ -25,7 +25,7 @@ async def main() -> None:
         models = await model_cache.list_models(provider)
         print(f"\n{provider.upper()} models ({len(models)}):")
         for model in models[:10]:
-            print(f"  {model['id']} — {model['name']}")
+            print(f"  {model.get('id', 'unknown')} — {model.get('name', 'unknown')}")
         if len(models) > 10:
             print(f"  ... and {len(models) - 10} more")
 

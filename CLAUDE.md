@@ -21,6 +21,7 @@ Shared async Python package for calling AI CLI tools (Claude, Gemini, Cursor) vi
   - `llm_pricing.py` — LLM cost calculation via LiteLLM pricing data with disk cache
   - `ai_models.py` — `AIModelCache` for model listing and validation per provider
 - `tests/` — pytest test suite
+- `examples/` — usage examples (basic_call, with_pricing, model_listing)
 
 ## Dependencies
 - `python-simple-logger` — logging

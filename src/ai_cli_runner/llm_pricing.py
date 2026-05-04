@@ -188,9 +188,20 @@ class LLMPricingCache:
                 return f"claude-{version_dashed}"
 
             if prefix == "gpt":
-                if variant:
-                    return f"gpt-{version}-{variant}"
-                return f"gpt-{version}"
+                # GPT versions can include trailing letters (e.g., "4o" in gpt-4o).
+                # Re-extract version with letters for GPT specifically.
+                gpt_version_match = re.match(r"(\d+(?:\.\d+)*[a-z]*)", rest)
+                gpt_version = gpt_version_match.group(1) if gpt_version_match else version
+                # Re-extract variant after the extended version
+                gpt_remaining = rest[len(gpt_version) :]
+                gpt_variant: str | None = None
+                if gpt_remaining.startswith("-"):
+                    parts = gpt_remaining[1:].split("-")
+                    if parts and parts[0] in self._KNOWN_VARIANTS:
+                        gpt_variant = parts[0]
+                if gpt_variant:
+                    return f"gpt-{gpt_version}-{gpt_variant}"
+                return f"gpt-{gpt_version}"
 
             if prefix == "gemini":
                 if variant:
