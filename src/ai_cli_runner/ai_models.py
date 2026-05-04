@@ -225,9 +225,12 @@ class AIModelCache:
         for line in model_lines:
             if " - " in line:
                 model_id, display_name = line.split(" - ", 1)
+                model_id = model_id.strip()
+                if not model_id:
+                    continue
                 models.append(
                     {
-                        "id": model_id.strip(),
+                        "id": model_id,
                         "name": display_name.strip(),
                     }
                 )

@@ -554,12 +554,15 @@ class TestBackgroundRefresh:
         """Starts and stops cleanly."""
         cache = LLMPricingCache()
 
-        with patch.object(cache, "refresh", new_callable=AsyncMock) as mock_refresh:
+        with (
+            patch.object(cache, "refresh", new_callable=AsyncMock) as mock_refresh,
+            patch("ai_cli_runner.llm_pricing._REFRESH_INTERVAL_SECONDS", 0.01),
+        ):
             await cache.start_background_refresh()
             assert cache._refresh_task is not None
             assert not cache._refresh_task.done()
 
-            # Give the loop a moment to call refresh at least once
+            # Give the loop a moment to sleep and call refresh at least once
             await asyncio.sleep(0.05)
 
             await cache.stop_background_refresh()
@@ -611,7 +614,7 @@ class TestDiskCacheHelpers:
             mock_file.stat.return_value = mock_stat
             assert cache._is_disk_cache_fresh()
 
-    def test_read_disk_cache_valid(self, tmp_path: object) -> None:
+    def test_read_disk_cache_valid(self) -> None:
         """Reads valid JSON from disk cache."""
         cache = LLMPricingCache()
         with patch("ai_cli_runner.llm_pricing._CACHE_FILE") as mock_file:
@@ -628,7 +631,7 @@ class TestDiskCacheHelpers:
             result = cache._read_disk_cache()
             assert result is None
 
-    def test_write_disk_cache(self, tmp_path: object) -> None:
+    def test_write_disk_cache(self) -> None:
         """Writes data to disk cache using atomic write."""
         cache = LLMPricingCache()
         mock_tmp_file = MagicMock()

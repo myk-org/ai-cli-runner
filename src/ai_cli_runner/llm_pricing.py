@@ -352,13 +352,13 @@ class LLMPricingCache:
     async def _refresh_loop(self) -> None:
         """Periodically refresh pricing data. Never raises."""
         while True:
+            await asyncio.sleep(_REFRESH_INTERVAL_SECONDS)
             try:
                 await self.refresh()
             except asyncio.CancelledError:
                 break
             except Exception:
                 logger.debug("Pricing refresh loop error", exc_info=True)
-            await asyncio.sleep(_REFRESH_INTERVAL_SECONDS)
 
 
 # Module-level singleton
