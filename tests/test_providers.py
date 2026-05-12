@@ -126,3 +126,34 @@ class TestProvidersDict:
     async def test_valid_ai_providers_matches_keys(self) -> None:
         assert set(PROVIDERS.keys()) == VALID_AI_PROVIDERS
         assert {"claude", "gemini", "cursor"} == VALID_AI_PROVIDERS
+
+
+class TestProviderSessionConfig:
+    async def test_claude_continue_flags(self) -> None:
+        config = PROVIDERS["claude"]
+        assert config.continue_flags == ("--continue",)
+
+    async def test_claude_resume_flag(self) -> None:
+        config = PROVIDERS["claude"]
+        assert config.resume_flag == "--resume"
+
+    async def test_gemini_continue_flags(self) -> None:
+        config = PROVIDERS["gemini"]
+        assert config.continue_flags == ("--resume",)
+
+    async def test_gemini_resume_flag(self) -> None:
+        config = PROVIDERS["gemini"]
+        assert config.resume_flag == "--resume"
+
+    async def test_cursor_continue_flags(self) -> None:
+        config = PROVIDERS["cursor"]
+        assert config.continue_flags == ("--continue",)
+
+    async def test_cursor_resume_flag(self) -> None:
+        config = PROVIDERS["cursor"]
+        assert config.resume_flag == "--resume"
+
+    async def test_provider_config_defaults(self) -> None:
+        config = ProviderConfig(binary="test", build_cmd=_build_claude_cmd)
+        assert config.continue_flags == ()
+        assert config.resume_flag == ""

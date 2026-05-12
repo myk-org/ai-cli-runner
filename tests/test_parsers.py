@@ -24,6 +24,7 @@ CLAUDE_JSON = json.dumps(
         "duration_ms": 2647,
         "duration_api_ms": 2581,
         "result": "\n\nHi!",
+        "session_id": "sess-claude-123",
         "total_cost_usd": 0.0807275,
         "usage": {
             "input_tokens": 3,
@@ -174,6 +175,11 @@ class TestParseClaudeJson:
         assert usage is not None
         assert usage.provider == "claude"
 
+    def test_parses_session_id(self, parsed: tuple[str, AITokenUsage | None]) -> None:
+        _, usage = parsed
+        assert usage is not None
+        assert usage.session_id == "sess-claude-123"
+
 
 class TestParseCursorJson:
     @pytest.fixture()
@@ -224,6 +230,11 @@ class TestParseCursorJson:
         assert usage is not None
         assert usage.model == ""
 
+    def test_parses_session_id(self, parsed: tuple[str, AITokenUsage | None]) -> None:
+        _, usage = parsed
+        assert usage is not None
+        assert usage.session_id == "abc123"
+
 
 class TestParseGeminiJson:
     @pytest.fixture()
@@ -272,6 +283,34 @@ class TestParseGeminiJson:
         _, usage = parsed
         assert usage is not None
         assert usage.provider == "gemini"
+
+    def test_parses_session_id(self, parsed: tuple[str, AITokenUsage | None]) -> None:
+        _, usage = parsed
+        assert usage is not None
+        assert usage.session_id == "sess456"
+
+    def test_session_id_with_noise(self) -> None:
+        _, usage = parse_gemini_json(GEMINI_JSON_WITH_NOISE, "gemini")
+        assert usage is not None
+        assert usage.session_id == "sess456"
+
+    def test_missing_session_id(self) -> None:
+        no_session_json = json.dumps(
+            {
+                "response": "Hello",
+                "stats": {
+                    "models": {
+                        "gemini-2.0-flash": {
+                            "api": {"totalLatencyMs": 100},
+                            "tokens": {"input": 10, "candidates": 5, "cached": 0, "thoughts": 0},
+                        }
+                    }
+                },
+            }
+        )
+        _, usage = parse_gemini_json(no_session_json, "gemini")
+        assert usage is not None
+        assert usage.session_id == ""
 
     def test_aggregates_multiple_models(self) -> None:
         """Gemini may use multiple models (router + main); verify aggregation."""

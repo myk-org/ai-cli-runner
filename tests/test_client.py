@@ -257,6 +257,183 @@ class TestCallAiCli:
         assert "Unknown AI provider" in result.text
 
 
+class TestCallAiCliSession:
+    @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
+    @patch("ai_cli_runner.client._run_with_process_group")
+    async def test_continue_session_claude_flags(self, mock_run: MagicMock, _mock_thread: MagicMock) -> None:
+        mock_run.return_value = _successful_run_result()
+        await call_ai_cli(prompt="hello", ai_provider="claude", ai_model="opus-4", continue_session=True)
+        cmd = mock_run.call_args[0][0]
+        assert "--continue" in cmd
+
+    @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
+    @patch("ai_cli_runner.client._run_with_process_group")
+    async def test_continue_session_gemini_flags(self, mock_run: MagicMock, _mock_thread: MagicMock) -> None:
+        mock_run.return_value = _successful_run_result()
+        await call_ai_cli(prompt="hello", ai_provider="gemini", ai_model="flash", continue_session=True)
+        cmd = mock_run.call_args[0][0]
+        assert "--resume" in cmd
+        # gemini uses --resume with no arg for continue; verify no session id follows
+        resume_idx = cmd.index("--resume")
+        # --resume should be the last element (no arg after it)
+        assert resume_idx == len(cmd) - 1
+
+    @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
+    @patch("ai_cli_runner.client._run_with_process_group")
+    async def test_continue_session_cursor_flags(self, mock_run: MagicMock, _mock_thread: MagicMock) -> None:
+        mock_run.return_value = _successful_run_result()
+        await call_ai_cli(prompt="hello", ai_provider="cursor", ai_model="gpt-4", continue_session=True)
+        cmd = mock_run.call_args[0][0]
+        assert "--continue" in cmd
+
+    @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
+    @patch("ai_cli_runner.client._run_with_process_group")
+    async def test_session_id_claude_flags(self, mock_run: MagicMock, _mock_thread: MagicMock) -> None:
+        mock_run.return_value = _successful_run_result()
+        await call_ai_cli(prompt="hello", ai_provider="claude", ai_model="opus-4", session_id="sess-abc")
+        cmd = mock_run.call_args[0][0]
+        resume_idx = cmd.index("--resume")
+        assert cmd[resume_idx + 1] == "sess-abc"
+
+    @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
+    @patch("ai_cli_runner.client._run_with_process_group")
+    async def test_session_id_gemini_flags(self, mock_run: MagicMock, _mock_thread: MagicMock) -> None:
+        mock_run.return_value = _successful_run_result()
+        await call_ai_cli(prompt="hello", ai_provider="gemini", ai_model="flash", session_id="sess-def")
+        cmd = mock_run.call_args[0][0]
+        resume_idx = cmd.index("--resume")
+        assert cmd[resume_idx + 1] == "sess-def"
+
+    @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
+    @patch("ai_cli_runner.client._run_with_process_group")
+    async def test_session_id_cursor_flags(self, mock_run: MagicMock, _mock_thread: MagicMock) -> None:
+        mock_run.return_value = _successful_run_result()
+        await call_ai_cli(prompt="hello", ai_provider="cursor", ai_model="gpt-4", session_id="sess-ghi")
+        cmd = mock_run.call_args[0][0]
+        resume_idx = cmd.index("--resume")
+        assert cmd[resume_idx + 1] == "sess-ghi"
+
+    async def test_session_id_and_continue_session_mutually_exclusive(self) -> None:
+        result = await call_ai_cli(
+            prompt="hello",
+            ai_provider="claude",
+            ai_model="opus-4",
+            session_id="sess-abc",
+            continue_session=True,
+        )
+        assert result.success is False
+        assert "Cannot use both session_id and continue_session" in result.text
+
+    @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
+    @patch("ai_cli_runner.client._run_with_process_group")
+    async def test_session_id_returned_from_json_output(self, mock_run: MagicMock, _mock_thread: MagicMock) -> None:
+        import json
+
+        claude_response = json.dumps(
+            {
+                "type": "result",
+                "result": "Hello!",
+                "session_id": "test-session-abc",
+                "duration_ms": 100,
+                "total_cost_usd": 0.01,
+                "usage": {"input_tokens": 5, "output_tokens": 3},
+                "modelUsage": {"opus-4": {}},
+            }
+        )
+        mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout=claude_response, stderr="")
+        result = await call_ai_cli(prompt="hello", ai_provider="claude", ai_model="opus-4", output_format="json")
+        assert result.session_id == "test-session-abc"
+
+    @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
+    @patch("ai_cli_runner.client._run_with_process_group")
+    async def test_session_id_none_without_json_output(self, mock_run: MagicMock, _mock_thread: MagicMock) -> None:
+        mock_run.return_value = _successful_run_result()
+        result = await call_ai_cli(prompt="hello", ai_provider="claude", ai_model="opus-4")
+        assert result.session_id is None
+
+    @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
+    @patch("ai_cli_runner.client._run_with_process_group")
+    async def test_session_id_none_when_not_in_json(self, mock_run: MagicMock, _mock_thread: MagicMock) -> None:
+        import json
+
+        claude_response = json.dumps(
+            {
+                "type": "result",
+                "result": "Hello!",
+                "duration_ms": 100,
+                "total_cost_usd": 0.01,
+                "usage": {"input_tokens": 5, "output_tokens": 3},
+                "modelUsage": {"opus-4": {}},
+            }
+        )
+        mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout=claude_response, stderr="")
+        result = await call_ai_cli(prompt="hello", ai_provider="claude", ai_model="opus-4", output_format="json")
+        # session_id defaults to "" in AITokenUsage, which becomes None via `or None`
+        assert result.session_id is None
+
+    @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
+    @patch("ai_cli_runner.client._run_with_process_group")
+    async def test_continue_session_with_cli_flags(self, mock_run: MagicMock, _mock_thread: MagicMock) -> None:
+        mock_run.return_value = _successful_run_result()
+        await call_ai_cli(
+            prompt="hello",
+            ai_provider="claude",
+            ai_model="opus-4",
+            cli_flags=["--dangerously-skip-permissions"],
+            continue_session=True,
+        )
+        cmd = mock_run.call_args[0][0]
+        # Session flags should be appended AFTER other cli_flags
+        skip_idx = cmd.index("--dangerously-skip-permissions")
+        continue_idx = cmd.index("--continue")
+        assert continue_idx > skip_idx
+
+    @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
+    @patch("ai_cli_runner.client._run_with_process_group")
+    async def test_session_id_with_output_format(self, mock_run: MagicMock, _mock_thread: MagicMock) -> None:
+        import json
+
+        claude_response = json.dumps(
+            {
+                "type": "result",
+                "result": "Hello!",
+                "session_id": "sess-combo",
+                "duration_ms": 100,
+                "total_cost_usd": 0.01,
+                "usage": {"input_tokens": 5, "output_tokens": 3},
+                "modelUsage": {"opus-4": {}},
+            }
+        )
+        mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout=claude_response, stderr="")
+        result = await call_ai_cli(
+            prompt="hello",
+            ai_provider="claude",
+            ai_model="opus-4",
+            output_format="json",
+            session_id="sess-prev",
+        )
+        cmd = mock_run.call_args[0][0]
+        # Both --output-format json and --resume sess-prev should be in the command
+        assert "--output-format" in cmd
+        assert "json" in cmd
+        assert "--resume" in cmd
+        assert "sess-prev" in cmd
+        # Result should have session_id from the JSON response
+        assert result.session_id == "sess-combo"
+
+    @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
+    @patch("ai_cli_runner.client._run_with_process_group")
+    async def test_session_flags_without_output_format(self, mock_run: MagicMock, _mock_thread: MagicMock) -> None:
+        """Session flags are sent to CLI even without output_format; result.session_id is None."""
+        mock_run.return_value = _successful_run_result()
+        result = await call_ai_cli(prompt="hi", ai_provider="claude", ai_model="opus-4", session_id="sess-123")
+        cmd = mock_run.call_args[0][0]
+        assert "--resume" in cmd
+        assert "sess-123" in cmd
+        assert "--output-format" not in cmd
+        assert result.session_id is None
+
+
 class TestCheckAiCliAvailable:
     @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
     @patch("ai_cli_runner.client._run_with_process_group")

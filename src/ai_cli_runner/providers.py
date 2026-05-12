@@ -19,6 +19,8 @@ class ProviderConfig:
     binary: str
     build_cmd: Callable[[str, str, Path | None, list[str]], list[str]]
     parse_json: Callable[[str, str], tuple[str, AITokenUsage | None]] | None = None
+    continue_flags: tuple[str, ...] = ()
+    resume_flag: str = ""
 
 
 def _build_claude_cmd(binary: str, model: str, _cwd: Path | None, cli_flags: list[str]) -> list[str]:
@@ -39,9 +41,28 @@ def _build_cursor_cmd(binary: str, model: str, cwd: Path | None, cli_flags: list
 
 
 PROVIDERS: dict[str, ProviderConfig] = {
-    "claude": ProviderConfig(binary="claude", build_cmd=_build_claude_cmd, parse_json=parse_claude_json),
-    "gemini": ProviderConfig(binary="gemini", build_cmd=_build_gemini_cmd, parse_json=parse_gemini_json),
-    "cursor": ProviderConfig(binary="agent", build_cmd=_build_cursor_cmd, parse_json=parse_cursor_json),
+    "claude": ProviderConfig(
+        binary="claude",
+        build_cmd=_build_claude_cmd,
+        parse_json=parse_claude_json,
+        continue_flags=("--continue",),
+        resume_flag="--resume",
+    ),
+    "gemini": ProviderConfig(
+        binary="gemini",
+        build_cmd=_build_gemini_cmd,
+        parse_json=parse_gemini_json,
+        # Gemini uses --resume for both: no arg = continue latest, with ID = resume specific
+        continue_flags=("--resume",),
+        resume_flag="--resume",
+    ),
+    "cursor": ProviderConfig(
+        binary="agent",
+        build_cmd=_build_cursor_cmd,
+        parse_json=parse_cursor_json,
+        continue_flags=("--continue",),
+        resume_flag="--resume",
+    ),
 }
 
 VALID_AI_PROVIDERS: frozenset[str] = frozenset(PROVIDERS.keys())
