@@ -98,7 +98,7 @@ All providers support multi-turn conversations via sessions. Use `output_format=
 result = await call_ai_cli(
     prompt="My name is Alice.",
     ai_provider="claude",
-    ai_model="claude-haiku-4-5",
+    ai_model="claude-haiku-4-20250514",
     output_format="json",
 )
 session_id = result.session_id  # capture for later
@@ -107,7 +107,7 @@ session_id = result.session_id  # capture for later
 followup = await call_ai_cli(
     prompt="What is my name?",
     ai_provider="claude",
-    ai_model="claude-haiku-4-5",
+    ai_model="claude-haiku-4-20250514",
     output_format="json",
     session_id=session_id,
 )
@@ -116,7 +116,7 @@ followup = await call_ai_cli(
 continued = await call_ai_cli(
     prompt="Thanks!",
     ai_provider="claude",
-    ai_model="claude-haiku-4-5",
+    ai_model="claude-haiku-4-20250514",
     output_format="json",
     continue_session=True,
 )

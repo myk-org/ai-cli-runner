@@ -182,7 +182,7 @@ async def call_ai_cli(
     if config is None:  # defensive: guaranteed by _validate_provider_and_model
         raise RuntimeError("ProviderConfig unexpectedly None after validation")
 
-    if session_id and continue_session:
+    if session_id is not None and continue_session:
         return AIResult(
             success=False,
             text=(
@@ -223,7 +223,7 @@ async def call_ai_cli(
 
     if continue_session:
         effective_cli_flags.extend(config.continue_flags)
-    elif session_id:
+    elif session_id is not None:
         effective_cli_flags.extend([config.resume_flag, session_id])
 
     cmd = config.build_cmd(config.binary, ai_model, cwd, effective_cli_flags)
