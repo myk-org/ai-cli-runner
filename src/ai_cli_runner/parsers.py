@@ -48,6 +48,7 @@ def parse_claude_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage
         duration_ms=data.get("duration_ms"),
         model=model_name,
         provider=provider,
+        session_id=data.get("session_id", ""),
     )
     return text, usage
 
@@ -66,6 +67,7 @@ def parse_cursor_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage
         cache_write_tokens=usage_data.get("cacheWriteTokens", 0),
         duration_ms=data.get("duration_ms"),
         provider=provider,
+        session_id=data.get("session_id", ""),
     )
     return text, usage
 
@@ -117,6 +119,7 @@ def parse_gemini_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage
         duration_ms=total_duration if total_duration > 0 else None,
         model=primary_model,
         provider=provider,
+        session_id=data.get("session_id", ""),
     )
     return text, usage
 

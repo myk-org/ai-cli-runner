@@ -19,6 +19,7 @@ class AITokenUsage:
     duration_ms: int | None = None
     model: str = ""
     provider: str = ""
+    session_id: str = ""
 
 
 @dataclass
@@ -32,6 +33,7 @@ class AIResult:
     success: bool
     text: str
     usage: AITokenUsage | None = None
+    session_id: str | None = None
 
     def __iter__(self) -> Iterator[Any]:
         """Support tuple unpacking for backward compatibility.

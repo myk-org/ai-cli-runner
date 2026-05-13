@@ -145,6 +145,8 @@ async def call_ai_cli(
     ai_cli_timeout: int | None = None,
     cli_flags: list[str] | None = None,
     output_format: Literal["json"] | None = None,
+    session_id: str | None = None,
+    continue_session: bool = False,
 ) -> AIResult:
     """Call AI CLI (Claude, Gemini, or Cursor) with given prompt.
 
@@ -156,15 +158,22 @@ async def call_ai_cli(
         ai_cli_timeout: Timeout in minutes (overrides AI_CLI_TIMEOUT env var).
         cli_flags: Extra CLI flags to pass to the provider command.
         output_format: Output format ("json" or None). When set, parses structured output.
+        session_id: Resume a specific session by ID. Mutually exclusive with continue_session.
+        continue_session: Continue the most recent session. Mutually exclusive with session_id.
 
     Returns:
-        AIResult with success status, text output, and optional usage metadata.
+        AIResult with success status, text output, optional usage metadata, and session_id.
         Supports tuple unpacking: success, text = await call_ai_cli(...)
 
     Note:
         Cost calculation via LiteLLM pricing requires ``await pricing_cache.load()``
         at application startup. Without it, ``cost_usd`` will only be populated
         for providers that report it natively (e.g., Claude).
+
+        Session parameters (``session_id``, ``continue_session``) work with any
+        output format — the CLI will resume/continue the conversation regardless.
+        However, ``AIResult.session_id`` is only populated when ``output_format="json"``
+        is set, since session IDs are extracted from the JSON response.
     """
     valid, error_msg, config = _validate_provider_and_model(ai_provider, ai_model)
     if not valid:
@@ -172,6 +181,16 @@ async def call_ai_cli(
 
     if config is None:  # defensive: guaranteed by _validate_provider_and_model
         raise RuntimeError("ProviderConfig unexpectedly None after validation")
+
+    if session_id is not None and continue_session:
+        return AIResult(
+            success=False,
+            text=(
+                "Cannot use both session_id and continue_session."
+                " Use session_id to resume a specific session,"
+                " or continue_session to continue the most recent session."
+            ),
+        )
 
     provider_info = f"{ai_provider.upper()} ({ai_model})"
 
@@ -201,6 +220,11 @@ async def call_ai_cli(
                 output_format,
             )
         effective_cli_flags = ["--output-format", output_format, *cleaned_flags]
+
+    if continue_session:
+        effective_cli_flags.extend(config.continue_flags)
+    elif session_id is not None:
+        effective_cli_flags.extend([config.resume_flag, session_id])
 
     cmd = config.build_cmd(config.binary, ai_model, cwd, effective_cli_flags)
 
@@ -260,7 +284,9 @@ async def call_ai_cli(
                 output_format,
                 len(result.stdout),
             )
-        return AIResult(success=True, text=text, usage=usage)
+        # Bridge AITokenUsage.session_id (str, defaults "") → AIResult.session_id (str | None)
+        session = usage.session_id if usage else None
+        return AIResult(success=True, text=text, usage=usage, session_id=session or None)
 
     return AIResult(success=True, text=result.stdout)
 

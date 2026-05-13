@@ -33,6 +33,14 @@ class TestAITokenUsage:
         assert usage.model == "opus-4"
         assert usage.provider == "claude"
 
+    def test_session_id_default(self) -> None:
+        usage = AITokenUsage()
+        assert usage.session_id == ""
+
+    def test_session_id_custom(self) -> None:
+        usage = AITokenUsage(session_id="sess-abc-123")
+        assert usage.session_id == "sess-abc-123"
+
 
 class TestAIResult:
     def test_tuple_unpacking(self) -> None:
@@ -83,3 +91,19 @@ class TestAIResult:
         assert text == "hi"
         # usage is still accessible via attribute
         assert result.usage is usage
+
+    def test_session_id_default_none(self) -> None:
+        result = AIResult(success=True, text="hi")
+        assert result.session_id is None
+
+    def test_session_id_custom(self) -> None:
+        result = AIResult(success=True, text="hi", session_id="sess-xyz")
+        assert result.session_id == "sess-xyz"
+
+    def test_session_id_not_in_tuple_unpacking(self) -> None:
+        result = AIResult(success=True, text="hi", session_id="sess-xyz")
+        success, text = result
+        assert success is True
+        assert text == "hi"
+        # session_id is still accessible via attribute
+        assert result.session_id == "sess-xyz"

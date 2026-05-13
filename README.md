@@ -39,14 +39,15 @@ See [`examples/`](examples/) for complete usage:
 | [`basic_call.py`](examples/basic_call.py) | Parallel calls to all 3 providers with token usage |
 | [`with_pricing.py`](examples/with_pricing.py) | LLM cost tracking via LiteLLM pricing |
 | [`model_listing.py`](examples/model_listing.py) | List models, validate names, check CLI availability |
+| [`session_usage.py`](examples/session_usage.py) | Session management — start, resume, and continue |
 
 Run any example: `uv run examples/basic_call.py`
 
 ## API
 
-### `call_ai_cli(prompt, cwd, ai_provider, ai_model, ai_cli_timeout, cli_flags, output_format) → AIResult`
+### `call_ai_cli(prompt, cwd, ai_provider, ai_model, ai_cli_timeout, cli_flags, output_format, session_id, continue_session) → AIResult`
 
-Call an AI CLI tool. Pass `output_format="json"` to get structured token usage.
+Call an AI CLI tool. Pass `output_format="json"` to get structured token usage and session IDs.
 
 ### `check_ai_cli_available(ai_provider, ai_model, cli_flags) → AIResult`
 
@@ -59,6 +60,7 @@ Send a trivial prompt to verify the CLI is installed and working.
 | `success` | `bool` | Whether the call succeeded |
 | `text` | `str` | Response text |
 | `usage` | `AITokenUsage \| None` | Token usage (when `output_format="json"`) |
+| `session_id` | `str \| None` | Session ID for resuming (when `output_format="json"`) |
 
 Supports tuple unpacking (`success, text = await call_ai_cli(...)`) and boolean evaluation (`if result: ...`).
 
@@ -74,6 +76,7 @@ Supports tuple unpacking (`success, text = await call_ai_cli(...)`) and boolean 
 | `duration_ms` | `int \| None` | Wall-clock duration |
 | `model` | `str` | Model used |
 | `provider` | `str` | Provider name |
+| `session_id` | `str` | Session ID from provider response |
 
 ### Cost Calculation
 
@@ -85,6 +88,41 @@ from ai_cli_runner import pricing_cache
 await pricing_cache.load()  # call once at startup
 # cost_usd is now auto-populated on all output_format="json" calls
 ```
+
+### Session Management
+
+All providers support multi-turn conversations via sessions. Use `output_format="json"` to get session IDs:
+
+```python
+# Start a session
+result = await call_ai_cli(
+    prompt="My name is Alice.",
+    ai_provider="claude",
+    ai_model="claude-haiku-4-20250514",
+    output_format="json",
+)
+session_id = result.session_id  # capture for later
+
+# Resume by session ID
+followup = await call_ai_cli(
+    prompt="What is my name?",
+    ai_provider="claude",
+    ai_model="claude-haiku-4-20250514",
+    output_format="json",
+    session_id=session_id,
+)
+
+# Continue the most recent session (no ID needed)
+continued = await call_ai_cli(
+    prompt="Thanks!",
+    ai_provider="claude",
+    ai_model="claude-haiku-4-20250514",
+    output_format="json",
+    continue_session=True,
+)
+```
+
+`session_id` and `continue_session` are mutually exclusive.
 
 ### Model Listing & Validation
 
@@ -98,11 +136,11 @@ is_valid = model_cache.is_valid_model("claude", "claude-haiku-4-20250514")
 
 ## Supported Providers
 
-| Provider | Binary | Notes |
-|----------|--------|-------|
-| `claude` | `claude` | `-p` flag for non-interactive mode |
-| `gemini` | `gemini` | Stdin prompt |
-| `cursor` | `agent` | `--workspace` for cwd |
+| Provider | Binary | Notes | Session flags |
+|----------|--------|-------|---------------|
+| `claude` | `claude` | `-p` flag for non-interactive mode | `--continue`, `--resume <id>` |
+| `gemini` | `gemini` | Stdin prompt | `--resume`, `--resume <id>` |
+| `cursor` | `agent` | `--workspace` for cwd | `--continue`, `--resume <id>` |
 
 ## Environment Variables
 
