@@ -1,3 +1,5 @@
+import pytest
+
 from ai_cli_runner.models import AIResult, AITokenUsage
 
 
@@ -107,3 +109,30 @@ class TestAIResult:
         assert text == "hi"
         # session_id is still accessible via attribute
         assert result.session_id == "sess-xyz"
+
+    def test_thinking_default_empty(self) -> None:
+        result = AIResult(success=True, text="hi")
+        assert result.thinking == ""
+
+    def test_thinking_custom_value(self) -> None:
+        result = AIResult(success=True, text="answer", thinking="intermediate reasoning")
+        assert result.thinking == "intermediate reasoning"
+
+    def test_thinking_not_in_tuple_unpacking(self) -> None:
+        result = AIResult(success=True, text="hi", thinking="some thinking")
+        success, text = result
+        assert success is True
+        assert text == "hi"
+        # thinking is still accessible via attribute
+        assert result.thinking == "some thinking"
+
+    def test_thinking_not_in_getitem(self) -> None:
+        result = AIResult(success=True, text="hi", thinking="some thinking")
+        assert result[0] is True
+        assert result[1] == "hi"
+        with pytest.raises(IndexError):
+            result[2]
+
+    def test_thinking_not_in_len(self) -> None:
+        result = AIResult(success=True, text="hi", thinking="some thinking")
+        assert len(result) == 2

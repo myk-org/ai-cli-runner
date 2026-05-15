@@ -30,8 +30,8 @@ def _extract_json(raw_output: str) -> dict[str, Any]:
         return json.loads(raw_output[start : end + 1])
 
 
-def parse_claude_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage | None]:
-    """Parse Claude CLI JSON output. Returns (text, usage)."""
+def parse_claude_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage | None, str]:
+    """Parse Claude CLI JSON output. Returns (text, usage, thinking)."""
     data = _extract_json(raw_output)
     text = data.get("result", "")
 
@@ -50,17 +50,17 @@ def parse_claude_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage
         provider=provider,
         session_id=data.get("session_id", ""),
     )
-    return text, usage
+    return text, usage, ""
 
 
-def parse_cursor_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage | None]:
-    """Parse Cursor CLI stream-json output. Returns (text, usage).
+def parse_cursor_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage | None, str]:
+    """Parse Cursor CLI stream-json output. Returns (text, usage, thinking).
 
     Cursor uses stream-json format (NDJSON) to separate intermediate tool-use
     reasoning from the final answer. We extract only the last assistant message
     as the result text, and usage from the final result line.
     """
-    last_assistant_text = ""
+    all_assistant_texts: list[str] = []
     usage: AITokenUsage | None = None
     result_text = ""
 
@@ -71,6 +71,7 @@ def parse_cursor_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage
         try:
             data = json.loads(line)
         except json.JSONDecodeError:
+            logger.debug("Skipping non-JSON line in Cursor stream: %s", line[:120])
             continue
 
         msg_type = data.get("type", "")
@@ -79,7 +80,9 @@ def parse_cursor_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage
             # Extract text from assistant message content blocks
             content = data.get("message", {}).get("content", [])
             texts = [block["text"] for block in content if block.get("type") == "text" and block.get("text")]
-            last_assistant_text = "\n".join(texts)
+            joined = "\n".join(texts)
+            if joined:
+                all_assistant_texts.append(joined)
 
         elif msg_type == "result":
             result_text = data.get("result", "")
@@ -99,12 +102,17 @@ def parse_cursor_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage
         logger.warning("No result line found in Cursor stream-json output; returning best-effort text")
 
     # Use last assistant message if available, otherwise fall back to result text
-    text = last_assistant_text or result_text
-    return text, usage
+    if all_assistant_texts:
+        text = all_assistant_texts[-1]
+        thinking = "\n\n".join(all_assistant_texts[:-1]) if len(all_assistant_texts) >= 2 else ""
+    else:
+        text = result_text
+        thinking = ""
+    return text, usage, thinking
 
 
-def parse_gemini_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage | None]:
-    """Parse Gemini CLI JSON output. Returns (text, usage).
+def parse_gemini_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage | None, str]:
+    """Parse Gemini CLI JSON output. Returns (text, usage, thinking).
 
     Note: text field is 'response' not 'result'.
     Note: Gemini may use multiple models (e.g., router + main); tokens and
@@ -152,13 +160,13 @@ def parse_gemini_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage
         provider=provider,
         session_id=data.get("session_id", ""),
     )
-    return text, usage
+    return text, usage, ""
 
 
-def parse_json_output(raw_output: str, provider: str) -> tuple[str, AITokenUsage | None]:
+def parse_json_output(raw_output: str, provider: str) -> tuple[str, AITokenUsage | None, str]:
     """Route to the correct provider parser.
 
-    Best-effort: if parsing fails, log warning and return (raw_output, None).
+    Best-effort: if parsing fails, log warning and return (raw_output, None, "").
     """
     # Lazy import to avoid circular dependency (providers imports parsers at module level)
     from ai_cli_runner.providers import PROVIDERS
@@ -166,10 +174,10 @@ def parse_json_output(raw_output: str, provider: str) -> tuple[str, AITokenUsage
     config = PROVIDERS.get(provider)
     if config is None or config.parse_json is None:
         logger.warning("No JSON parser for provider '%s'; returning raw output", provider)
-        return raw_output, None
+        return raw_output, None, ""
 
     try:
         return config.parse_json(raw_output, provider)
     except Exception:  # noqa: BLE001 — best-effort: never raise to caller
         logger.warning("Failed to parse JSON output from '%s'; returning raw output", provider, exc_info=True)
-        return raw_output, None
+        return raw_output, None, ""

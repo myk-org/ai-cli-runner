@@ -268,7 +268,7 @@ async def call_ai_cli(
     logger.debug("%s CLI response length: %d chars", provider_info, len(result.stdout))
 
     if output_format:
-        text, usage = parse_json_output(result.stdout, ai_provider)
+        text, usage, thinking = parse_json_output(result.stdout, ai_provider)
         if usage is not None and usage.cost_usd is None:
             usage.cost_usd = pricing_cache.calculate_cost(
                 provider=usage.provider or ai_provider,
@@ -287,7 +287,7 @@ async def call_ai_cli(
             )
         # Bridge AITokenUsage.session_id (str, defaults "") → AIResult.session_id (str | None)
         session = usage.session_id if usage else None
-        return AIResult(success=True, text=text, usage=usage, session_id=session or None)
+        return AIResult(success=True, text=text, usage=usage, session_id=session or None, thinking=thinking)
 
     return AIResult(success=True, text=result.stdout)
 

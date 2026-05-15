@@ -176,122 +176,136 @@ class TestExtractJson:
 
 class TestParseClaudeJson:
     @pytest.fixture()
-    def parsed(self) -> tuple[str, AITokenUsage | None]:
+    def parsed(self) -> tuple[str, AITokenUsage | None, str]:
         return parse_claude_json(CLAUDE_JSON, "claude")
 
-    def test_parses_text(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        text, _usage = parsed
+    def test_parses_text(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        text, _usage, _thinking = parsed
         assert text == "\n\nHi!"
 
-    def test_parses_input_tokens(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_parses_input_tokens(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.input_tokens == 3
 
-    def test_parses_output_tokens(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_parses_output_tokens(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.output_tokens == 6
 
-    def test_parses_cache_read_tokens(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_parses_cache_read_tokens(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.cache_read_tokens == 11925
 
-    def test_parses_cache_write_tokens(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_parses_cache_write_tokens(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.cache_write_tokens == 11936
 
-    def test_parses_cost(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_parses_cost(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.cost_usd == 0.0807275
 
-    def test_parses_duration(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_parses_duration(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.duration_ms == 2647
 
-    def test_parses_model(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_parses_model(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.model == "claude-opus-4-6[1m]"
 
-    def test_parses_provider(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_parses_provider(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.provider == "claude"
 
-    def test_parses_session_id(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_parses_session_id(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.session_id == "sess-claude-123"
+
+    def test_thinking_empty(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, _, thinking = parsed
+        assert thinking == ""
 
 
 class TestParseCursorJson:
     @pytest.fixture()
-    def parsed(self) -> tuple[str, AITokenUsage | None]:
+    def parsed(self) -> tuple[str, AITokenUsage | None, str]:
         return parse_cursor_json(CURSOR_JSON, "cursor")
 
-    def test_parses_text(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        text, _usage = parsed
+    def test_parses_text(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        text, _usage, _thinking = parsed
         assert text == "Hi — good to meet you. How can I help you today?"
 
-    def test_parses_input_tokens(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_parses_input_tokens(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.input_tokens == 3602
 
-    def test_parses_output_tokens(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_parses_output_tokens(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.output_tokens == 61
 
-    def test_parses_cache_read_tokens(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_parses_cache_read_tokens(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.cache_read_tokens == 9728
 
-    def test_parses_cache_write_tokens(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_parses_cache_write_tokens(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.cache_write_tokens == 0
 
-    def test_no_cost(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_no_cost(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.cost_usd is None
 
-    def test_parses_duration(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_parses_duration(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.duration_ms == 6661
 
-    def test_parses_provider(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_parses_provider(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.provider == "cursor"
 
-    def test_model_empty_by_design(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_model_empty_by_design(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.model == ""
 
-    def test_parses_session_id(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_parses_session_id(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.session_id == "abc123"
 
+    def test_thinking_captures_intermediate_reasoning(self) -> None:
+        """Verify thinking captures intermediate assistant messages."""
+        _, _, thinking = parse_cursor_json(CURSOR_JSON, "cursor")
+        assert thinking == "Let me check that for you."
+
+    def test_thinking_empty_for_single_message(self) -> None:
+        """Verify thinking is empty when there is only one assistant message."""
+        _, _, thinking = parse_cursor_json(CURSOR_SIMPLE_JSON, "cursor")
+        assert thinking == ""
+
     def test_strips_chain_of_thought(self) -> None:
         """Verify chain-of-thought from intermediate assistant messages is excluded."""
-        text, _usage = parse_cursor_json(CURSOR_JSON, "cursor")
+        text, _usage, _thinking = parse_cursor_json(CURSOR_JSON, "cursor")
         assert "Let me check" not in text
         assert text == "Hi — good to meet you. How can I help you today?"
 
     def test_simple_single_message(self) -> None:
         """Test with a single assistant message (no tool use)."""
-        text, usage = parse_cursor_json(CURSOR_SIMPLE_JSON, "cursor")
+        text, usage, _thinking = parse_cursor_json(CURSOR_SIMPLE_JSON, "cursor")
         assert text == "Hi there!"
         assert usage is not None
         assert usage.session_id == "simple123"
@@ -299,7 +313,7 @@ class TestParseCursorJson:
         assert usage.output_tokens == 10
         assert usage.duration_ms == 2000
 
-    def test_last_assistant_empty_content_uses_result_fallback(self) -> None:
+    def test_last_assistant_no_text_blocks_uses_previous_assistant(self) -> None:
         """If last assistant message has no text blocks, fall back to result text."""
         assistant_1 = {
             "type": "assistant",
@@ -337,10 +351,12 @@ class TestParseCursorJson:
             json.dumps(assistant_2),
             json.dumps(result_line),
         ]
-        text, usage = parse_cursor_json("\n".join(lines), "cursor")
-        # Last assistant had no text blocks, so last_assistant_text is "", falls back to result_text
-        assert text == "Final answer from result"
+        text, usage, thinking = parse_cursor_json("\n".join(lines), "cursor")
+        # assistant_1 has text, assistant_2 has no text blocks (only tool_use, not appended)
+        # So all_assistant_texts = ["Intermediate reasoning"], text = that, thinking = ""
+        assert text == "Intermediate reasoning"
         assert usage is not None
+        assert thinking == ""
 
     def test_malformed_ndjson_lines_skipped(self) -> None:
         """Non-JSON lines in stream output are silently skipped."""
@@ -372,7 +388,7 @@ class TestParseCursorJson:
             json.dumps(assistant_msg),
             json.dumps(result_line),
         ]
-        text, usage = parse_cursor_json("\n".join(lines), "cursor")
+        text, usage, _thinking = parse_cursor_json("\n".join(lines), "cursor")
         assert text == "Hello!"
         assert usage is not None
         assert usage.session_id == "m1"
@@ -391,66 +407,66 @@ class TestParseCursorJson:
             json.dumps({"type": "system", "subtype": "init", "session_id": "nr1"}),
             json.dumps(assistant_msg),
         ]
-        text, usage = parse_cursor_json("\n".join(lines), "cursor")
+        text, usage, _thinking = parse_cursor_json("\n".join(lines), "cursor")
         assert text == "Partial response"
         assert usage is None
 
 
 class TestParseGeminiJson:
     @pytest.fixture()
-    def parsed(self) -> tuple[str, AITokenUsage | None]:
+    def parsed(self) -> tuple[str, AITokenUsage | None, str]:
         return parse_gemini_json(GEMINI_JSON_BODY, "gemini")
 
-    def test_parses_text(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        text, _usage = parsed
+    def test_parses_text(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        text, _usage, _thinking = parsed
         assert text == "Hi!"
 
     def test_parses_text_with_noise(self) -> None:
-        text, _usage = parse_gemini_json(GEMINI_JSON_WITH_NOISE, "gemini")
+        text, _usage, _thinking = parse_gemini_json(GEMINI_JSON_WITH_NOISE, "gemini")
         assert text == "Hi!"
 
-    def test_parses_input_tokens(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_parses_input_tokens(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.input_tokens == 10288
 
-    def test_parses_output_tokens(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_parses_output_tokens(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.output_tokens == 350
 
-    def test_parses_cache_read_tokens(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_parses_cache_read_tokens(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.cache_read_tokens == 0
 
-    def test_cache_write_tokens_zero(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_cache_write_tokens_zero(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.cache_write_tokens == 0
 
-    def test_parses_duration(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_parses_duration(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.duration_ms == 5371
 
-    def test_parses_model(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_parses_model(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.model == "gemini-3.1-pro-preview"
 
-    def test_parses_provider(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_parses_provider(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.provider == "gemini"
 
-    def test_parses_session_id(self, parsed: tuple[str, AITokenUsage | None]) -> None:
-        _, usage = parsed
+    def test_parses_session_id(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, usage, _ = parsed
         assert usage is not None
         assert usage.session_id == "sess456"
 
     def test_session_id_with_noise(self) -> None:
-        _, usage = parse_gemini_json(GEMINI_JSON_WITH_NOISE, "gemini")
+        _, usage, _ = parse_gemini_json(GEMINI_JSON_WITH_NOISE, "gemini")
         assert usage is not None
         assert usage.session_id == "sess456"
 
@@ -468,7 +484,7 @@ class TestParseGeminiJson:
                 },
             }
         )
-        _, usage = parse_gemini_json(no_session_json, "gemini")
+        _, usage, _ = parse_gemini_json(no_session_json, "gemini")
         assert usage is not None
         assert usage.session_id == ""
 
@@ -491,7 +507,7 @@ class TestParseGeminiJson:
                 },
             }
         )
-        text, usage = parse_gemini_json(multi_model_json, "gemini")
+        text, usage, _ = parse_gemini_json(multi_model_json, "gemini")
         assert text == "Hello!"
         assert usage is not None
         assert usage.input_tokens == 1197 + 8468  # sum across models
@@ -501,38 +517,45 @@ class TestParseGeminiJson:
         assert usage.model == "gemini-2.5-flash-lite"
         assert usage.provider == "gemini"
 
+    def test_thinking_empty(self, parsed: tuple[str, AITokenUsage | None, str]) -> None:
+        _, _, thinking = parsed
+        assert thinking == ""
+
 
 class TestParseJsonOutput:
     def test_routes_to_claude(self) -> None:
-        text, usage = parse_json_output(CLAUDE_JSON, "claude")
+        text, usage, _thinking = parse_json_output(CLAUDE_JSON, "claude")
         assert text == "\n\nHi!"
         assert usage is not None
         assert usage.provider == "claude"
 
     def test_routes_to_cursor(self) -> None:
-        text, usage = parse_json_output(CURSOR_JSON, "cursor")
+        text, usage, _thinking = parse_json_output(CURSOR_JSON, "cursor")
         assert text == "Hi — good to meet you. How can I help you today?"
         assert usage is not None
         assert usage.provider == "cursor"
 
     def test_routes_to_gemini(self) -> None:
-        text, usage = parse_json_output(GEMINI_JSON_BODY, "gemini")
+        text, usage, _thinking = parse_json_output(GEMINI_JSON_BODY, "gemini")
         assert text == "Hi!"
         assert usage is not None
         assert usage.provider == "gemini"
 
     def test_unknown_provider_returns_raw(self) -> None:
-        text, usage = parse_json_output("raw output", "unknown_provider")
+        text, usage, thinking = parse_json_output("raw output", "unknown_provider")
         assert text == "raw output"
         assert usage is None
+        assert thinking == ""
 
     def test_invalid_json_returns_raw(self) -> None:
-        text, usage = parse_json_output("not json at all", "claude")
+        text, usage, thinking = parse_json_output("not json at all", "claude")
         assert text == "not json at all"
         assert usage is None
+        assert thinking == ""
 
     def test_best_effort_no_exception(self) -> None:
         # Should never raise, even with garbage input
-        text, usage = parse_json_output("", "gemini")
+        text, usage, thinking = parse_json_output("", "gemini")
         assert text == ""
         assert usage is None
+        assert thinking == ""

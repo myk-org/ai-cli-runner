@@ -61,6 +61,7 @@ Send a trivial prompt to verify the CLI is installed and working.
 | `text` | `str` | Response text |
 | `usage` | `AITokenUsage \| None` | Token usage (when `output_format="json"`) |
 | `session_id` | `str \| None` | Session ID for resuming (when `output_format="json"`) |
+| `thinking` | `str` | Intermediate reasoning/chain-of-thought (populated for Cursor; empty for Claude/Gemini) |
 
 Supports tuple unpacking (`success, text = await call_ai_cli(...)`) and boolean evaluation (`if result: ...`).
 

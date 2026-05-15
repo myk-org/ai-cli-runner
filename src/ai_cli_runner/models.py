@@ -34,6 +34,7 @@ class AIResult:
     text: str
     usage: AITokenUsage | None = None
     session_id: str | None = None
+    thinking: str = ""
 
     def __iter__(self) -> Iterator[Any]:
         """Support tuple unpacking for backward compatibility.
