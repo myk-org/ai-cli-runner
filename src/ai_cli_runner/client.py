@@ -3,6 +3,7 @@ import contextlib
 import os
 import signal
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 from typing import Literal
 
@@ -286,17 +287,19 @@ async def call_ai_cli(
     logger.debug("%s CLI response length: %d chars", provider_info, len(result.stdout))
 
     if output_format:
-        parsed = parse_json_output(result.stdout, ai_provider)
-        if parsed.usage is not None and parsed.usage.cost_usd is None:
-            parsed.usage.cost_usd = pricing_cache.calculate_cost(
-                provider=parsed.usage.provider or ai_provider,
-                model=parsed.usage.model or ai_model,
-                input_tokens=parsed.usage.input_tokens,
-                output_tokens=parsed.usage.output_tokens,
-                cache_read_tokens=parsed.usage.cache_read_tokens,
-                cache_write_tokens=parsed.usage.cache_write_tokens,
+        text, usage, thinking = parse_json_output(result.stdout, ai_provider)
+        if usage is not None and usage.cost_usd is None:
+            cost = pricing_cache.calculate_cost(
+                provider=usage.provider or ai_provider,
+                model=usage.model or ai_model,
+                input_tokens=usage.input_tokens,
+                output_tokens=usage.output_tokens,
+                cache_read_tokens=usage.cache_read_tokens,
+                cache_write_tokens=usage.cache_write_tokens,
             )
-        if parsed.usage is None:
+            if cost is not None:
+                usage = replace(usage, cost_usd=cost)
+        if usage is None:
             logger.debug(
                 "%s: output_format=%r requested but no usage parsed; raw output length=%d",
                 provider_info,
@@ -304,13 +307,13 @@ async def call_ai_cli(
                 len(result.stdout),
             )
         # Bridge AITokenUsage.session_id (str, defaults "") → AIResult.session_id (str | None)
-        session = parsed.usage.session_id if parsed.usage else None
+        session = usage.session_id if usage else None
         return AIResult(
             success=True,
-            text=parsed.text,
-            usage=parsed.usage,
+            text=text,
+            usage=usage,
             session_id=session or None,
-            thinking=parsed.thinking,
+            thinking=thinking,
         )
 
     return AIResult(success=True, text=result.stdout)

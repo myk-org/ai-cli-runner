@@ -313,7 +313,7 @@ class TestParseCursorJson:
         assert usage.output_tokens == 10
         assert usage.duration_ms == 2000
 
-    def test_last_assistant_no_text_blocks_uses_previous_assistant(self) -> None:
+    def test_last_assistant_no_text_blocks_uses_result_fallback(self) -> None:
         """If last assistant message has no text blocks, fall back to result text."""
         assistant_1 = {
             "type": "assistant",
@@ -352,11 +352,10 @@ class TestParseCursorJson:
             json.dumps(result_line),
         ]
         text, usage, thinking = parse_cursor_json("\n".join(lines), "cursor")
-        # assistant_1 has text, assistant_2 has no text blocks (only tool_use, not appended)
-        # So all_assistant_texts = ["Intermediate reasoning"], text = that, thinking = ""
-        assert text == "Intermediate reasoning"
+        # assistant_2 had no text, so last_assistant_had_text=False → fall back to result_text
+        assert text == "Final answer from result"
         assert usage is not None
-        assert thinking == ""
+        assert thinking == "Intermediate reasoning"
 
     def test_malformed_ndjson_lines_skipped(self) -> None:
         """Non-JSON lines in stream output are silently skipped."""
@@ -524,62 +523,46 @@ class TestParseGeminiJson:
 
 class TestParseJsonOutput:
     def test_routes_to_claude(self) -> None:
-        result = parse_json_output(CLAUDE_JSON, "claude")
-        assert result.text == "\n\nHi!"
-        assert result.usage is not None
-        assert result.usage.provider == "claude"
-
-    def test_routes_to_cursor(self) -> None:
-        result = parse_json_output(CURSOR_JSON, "cursor")
-        assert result.text == "Hi — good to meet you. How can I help you today?"
-        assert result.usage is not None
-        assert result.usage.provider == "cursor"
-
-    def test_routes_to_gemini(self) -> None:
-        result = parse_json_output(GEMINI_JSON_BODY, "gemini")
-        assert result.text == "Hi!"
-        assert result.usage is not None
-        assert result.usage.provider == "gemini"
-
-    def test_unknown_provider_returns_raw(self) -> None:
-        result = parse_json_output("raw output", "unknown_provider")
-        assert result.text == "raw output"
-        assert result.usage is None
-        assert result.thinking == ""
-
-    def test_invalid_json_returns_raw(self) -> None:
-        result = parse_json_output("not json at all", "claude")
-        assert result.text == "not json at all"
-        assert result.usage is None
-        assert result.thinking == ""
-
-    def test_best_effort_no_exception(self) -> None:
-        # Should never raise, even with garbage input
-        result = parse_json_output("", "gemini")
-        assert result.text == ""
-        assert result.usage is None
-        assert result.thinking == ""
-
-    def test_backward_compat_tuple_unpacking(self) -> None:
-        """2-tuple unpacking still works for backward compatibility."""
-        text, usage = parse_json_output(CLAUDE_JSON, "claude")
+        text, usage, _thinking = parse_json_output(CLAUDE_JSON, "claude")
         assert text == "\n\nHi!"
         assert usage is not None
         assert usage.provider == "claude"
 
-    def test_backward_compat_tuple_unpacking_cursor(self) -> None:
-        """2-tuple unpacking works with cursor and thinking is accessible."""
-        result = parse_json_output(CURSOR_JSON, "cursor")
-        text, usage = result  # 2-tuple unpacking still works
+    def test_routes_to_cursor(self) -> None:
+        text, usage, _thinking = parse_json_output(CURSOR_JSON, "cursor")
         assert text == "Hi — good to meet you. How can I help you today?"
         assert usage is not None
-        assert result.thinking == "Let me check that for you."
+        assert usage.provider == "cursor"
 
-    def test_thinking_accessible_on_result(self) -> None:
-        """Thinking field is accessible on the ParsedOutput object."""
-        result = parse_json_output(CURSOR_JSON, "cursor")
-        assert result.thinking == "Let me check that for you."
+    def test_routes_to_gemini(self) -> None:
+        text, usage, _thinking = parse_json_output(GEMINI_JSON_BODY, "gemini")
+        assert text == "Hi!"
+        assert usage is not None
+        assert usage.provider == "gemini"
+
+    def test_unknown_provider_returns_raw(self) -> None:
+        text, usage, thinking = parse_json_output("raw output", "unknown_provider")
+        assert text == "raw output"
+        assert usage is None
+        assert thinking == ""
+
+    def test_invalid_json_returns_raw(self) -> None:
+        text, usage, thinking = parse_json_output("not json at all", "claude")
+        assert text == "not json at all"
+        assert usage is None
+        assert thinking == ""
+
+    def test_best_effort_no_exception(self) -> None:
+        # Should never raise, even with garbage input
+        text, usage, thinking = parse_json_output("", "gemini")
+        assert text == ""
+        assert usage is None
+        assert thinking == ""
+
+    def test_thinking_for_cursor(self) -> None:
+        _text, _usage, thinking = parse_json_output(CURSOR_JSON, "cursor")
+        assert thinking == "Let me check that for you."
 
     def test_thinking_empty_for_claude(self) -> None:
-        result = parse_json_output(CLAUDE_JSON, "claude")
-        assert result.thinking == ""
+        _text, _usage, thinking = parse_json_output(CLAUDE_JSON, "claude")
+        assert thinking == ""
