@@ -65,6 +65,18 @@ Send a trivial prompt to verify the CLI is installed and working.
 
 Supports tuple unpacking (`success, text = await call_ai_cli(...)`) and boolean evaluation (`if result: ...`).
 
+### `ParsedOutput`
+
+Returned by `parse_json_output()`. Supports backward-compatible tuple unpacking.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `text` | `str` | Response text (final answer only) |
+| `usage` | `AITokenUsage \| None` | Token usage metadata |
+| `thinking` | `str` | Intermediate reasoning/chain-of-thought (populated for Cursor; empty for Claude/Gemini) |
+
+Supports tuple unpacking (`text, usage = parse_json_output(...)`) and attribute access (`result.thinking`).
+
 ### `AITokenUsage`
 
 | Field | Type | Description |

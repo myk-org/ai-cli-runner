@@ -232,7 +232,11 @@ async def call_ai_cli(
                     "Stripping %s from cli_flags — incompatible with structured output parsing",
                     flag,
                 )
-            cleaned_flags = [f for f in cleaned_flags if f not in partial_flags]
+            cleaned_flags = [
+                f
+                for f in cleaned_flags
+                if f not in partial_flags and not any(f.startswith(pf + "=") for pf in partial_flags)
+            ]
 
         effective_cli_flags = ["--output-format", wire_format, *cleaned_flags]
 

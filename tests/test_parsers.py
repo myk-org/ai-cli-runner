@@ -569,11 +569,10 @@ class TestParseJsonOutput:
 
     def test_backward_compat_tuple_unpacking_cursor(self) -> None:
         """2-tuple unpacking works with cursor and thinking is accessible."""
-        text, usage = parse_json_output(CURSOR_JSON, "cursor")
+        result = parse_json_output(CURSOR_JSON, "cursor")
+        text, usage = result  # 2-tuple unpacking still works
         assert text == "Hi — good to meet you. How can I help you today?"
         assert usage is not None
-        # thinking is accessible via object
-        result = parse_json_output(CURSOR_JSON, "cursor")
         assert result.thinking == "Let me check that for you."
 
     def test_thinking_accessible_on_result(self) -> None:

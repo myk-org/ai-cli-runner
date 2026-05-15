@@ -14,9 +14,9 @@ Shared async Python package for calling AI CLI tools (Claude, Gemini, Cursor) vi
 ## Project Structure
 - `src/ai_cli_runner/` — package source
   - `client.py` — main `call_ai_cli()` function, subprocess management
-  - `models.py` — `AIResult` (with `thinking` field for chain-of-thought), `AITokenUsage` dataclasses
+  - `models.py` — `AIResult` (with `thinking` field for chain-of-thought), `AITokenUsage`, `ParsedOutput` dataclasses
   - `providers.py` — provider configs (claude, gemini, cursor)
-  - `parsers.py` — JSON output parsers per provider
+  - `parsers.py` — JSON output parsers per provider (returns `ParsedOutput`)
   - `parallel.py` — `run_parallel_with_limit()` concurrency helper
   - `llm_pricing.py` — LLM cost calculation via LiteLLM pricing data with disk cache
   - `ai_models.py` — `AIModelCache` for model listing and validation per provider
