@@ -3,6 +3,7 @@ import contextlib
 import os
 import signal
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 from typing import Literal
 
@@ -219,7 +220,26 @@ async def call_ai_cli(
                 "Caller-supplied --output-format in cli_flags will be overridden by output_format=%r",
                 output_format,
             )
-        effective_cli_flags = ["--output-format", output_format, *cleaned_flags]
+        wire_format = config.json_wire_format
+
+        # Strip partial-streaming flags — partial assistant deltas would
+        # break parsers that expect complete turns.
+        # Known flags: Cursor --stream-partial-output, Claude --include-partial-messages
+        partial_flags = {"--stream-partial-output", "--include-partial-messages"}
+        found_partial = partial_flags & set(cleaned_flags)
+        if found_partial:
+            for flag in sorted(found_partial):
+                logger.warning(
+                    "Stripping %s from cli_flags — incompatible with structured output parsing",
+                    flag,
+                )
+            cleaned_flags = [
+                f
+                for f in cleaned_flags
+                if f not in partial_flags and not any(f.startswith(pf + "=") for pf in partial_flags)
+            ]
+
+        effective_cli_flags = ["--output-format", wire_format, *cleaned_flags]
 
     if continue_session:
         effective_cli_flags.extend(config.continue_flags)
@@ -267,9 +287,9 @@ async def call_ai_cli(
     logger.debug("%s CLI response length: %d chars", provider_info, len(result.stdout))
 
     if output_format:
-        text, usage = parse_json_output(result.stdout, ai_provider)
+        text, usage, thinking = parse_json_output(result.stdout, ai_provider)
         if usage is not None and usage.cost_usd is None:
-            usage.cost_usd = pricing_cache.calculate_cost(
+            cost = pricing_cache.calculate_cost(
                 provider=usage.provider or ai_provider,
                 model=usage.model or ai_model,
                 input_tokens=usage.input_tokens,
@@ -277,6 +297,8 @@ async def call_ai_cli(
                 cache_read_tokens=usage.cache_read_tokens,
                 cache_write_tokens=usage.cache_write_tokens,
             )
+            if cost is not None:
+                usage = replace(usage, cost_usd=cost)
         if usage is None:
             logger.debug(
                 "%s: output_format=%r requested but no usage parsed; raw output length=%d",
@@ -286,7 +308,13 @@ async def call_ai_cli(
             )
         # Bridge AITokenUsage.session_id (str, defaults "") → AIResult.session_id (str | None)
         session = usage.session_id if usage else None
-        return AIResult(success=True, text=text, usage=usage, session_id=session or None)
+        return AIResult(
+            success=True,
+            text=text,
+            usage=usage,
+            session_id=session or None,
+            thinking=thinking,
+        )
 
     return AIResult(success=True, text=result.stdout)
 

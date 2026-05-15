@@ -30,8 +30,8 @@ def _extract_json(raw_output: str) -> dict[str, Any]:
         return json.loads(raw_output[start : end + 1])
 
 
-def parse_claude_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage | None]:
-    """Parse Claude CLI JSON output. Returns (text, usage)."""
+def parse_claude_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage | None, str]:
+    """Parse Claude CLI JSON output. Returns (text, usage, thinking)."""
     data = _extract_json(raw_output)
     text = data.get("result", "")
 
@@ -50,30 +50,79 @@ def parse_claude_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage
         provider=provider,
         session_id=data.get("session_id", ""),
     )
-    return text, usage
+    return text, usage, ""
 
 
-def parse_cursor_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage | None]:
-    """Parse Cursor CLI JSON output. Returns (text, usage)."""
-    data = _extract_json(raw_output)
-    text = data.get("result", "")
+def parse_cursor_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage | None, str]:
+    """Parse Cursor CLI stream-json output. Returns (text, usage, thinking).
 
-    usage_data = data.get("usage", {})
+    Cursor uses stream-json format (NDJSON) to separate intermediate tool-use
+    reasoning from the final answer. We extract only the last assistant message
+    as the result text, and usage from the final result line.
+    """
+    all_assistant_texts: list[str] = []
+    usage: AITokenUsage | None = None
+    result_text = ""
+    last_assistant_had_text = False
 
-    usage = AITokenUsage(
-        input_tokens=usage_data.get("inputTokens", 0),
-        output_tokens=usage_data.get("outputTokens", 0),
-        cache_read_tokens=usage_data.get("cacheReadTokens", 0),
-        cache_write_tokens=usage_data.get("cacheWriteTokens", 0),
-        duration_ms=data.get("duration_ms"),
-        provider=provider,
-        session_id=data.get("session_id", ""),
-    )
-    return text, usage
+    for line in raw_output.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            logger.debug("Skipping non-JSON line in Cursor stream: %s", line[:120])
+            continue
+
+        msg_type = data.get("type", "")
+
+        if msg_type == "assistant":
+            # Extract text from assistant message content blocks
+            raw_content = data.get("message", {}).get("content", [])
+            content = raw_content if isinstance(raw_content, list) else []
+            texts = [
+                block.get("text", "")
+                for block in content
+                if isinstance(block, dict) and block.get("type") == "text" and block.get("text")
+            ]
+            joined = "\n".join(texts)
+            last_assistant_had_text = bool(joined)
+            if joined:
+                all_assistant_texts.append(joined)
+
+        elif msg_type == "result":
+            result_text = data.get("result", "")
+            # Extract usage from the result line
+            usage_data = data.get("usage", {})
+            usage = AITokenUsage(
+                input_tokens=usage_data.get("inputTokens", 0),
+                output_tokens=usage_data.get("outputTokens", 0),
+                cache_read_tokens=usage_data.get("cacheReadTokens", 0),
+                cache_write_tokens=usage_data.get("cacheWriteTokens", 0),
+                duration_ms=data.get("duration_ms"),
+                provider=provider,
+                session_id=data.get("session_id", ""),
+            )
+
+    if usage is None:
+        logger.warning("No result line found in Cursor stream-json output; returning best-effort text")
+
+    # Use last assistant message if available, otherwise fall back to result text
+    if all_assistant_texts and last_assistant_had_text:
+        text = all_assistant_texts[-1]
+        thinking = "\n\n".join(all_assistant_texts[:-1]) if len(all_assistant_texts) >= 2 else ""
+    elif result_text:
+        text = result_text
+        thinking = "\n\n".join(all_assistant_texts)
+    else:
+        text = all_assistant_texts[-1] if all_assistant_texts else ""
+        thinking = "\n\n".join(all_assistant_texts[:-1]) if len(all_assistant_texts) >= 2 else ""
+    return text, usage, thinking
 
 
-def parse_gemini_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage | None]:
-    """Parse Gemini CLI JSON output. Returns (text, usage).
+def parse_gemini_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage | None, str]:
+    """Parse Gemini CLI JSON output. Returns (text, usage, thinking).
 
     Note: text field is 'response' not 'result'.
     Note: Gemini may use multiple models (e.g., router + main); tokens and
@@ -121,24 +170,23 @@ def parse_gemini_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage
         provider=provider,
         session_id=data.get("session_id", ""),
     )
-    return text, usage
+    return text, usage, ""
 
 
-def parse_json_output(raw_output: str, provider: str) -> tuple[str, AITokenUsage | None]:
+def parse_json_output(raw_output: str, provider: str) -> tuple[str, AITokenUsage | None, str]:
     """Route to the correct provider parser.
 
-    Best-effort: if parsing fails, log warning and return (raw_output, None).
+    Best-effort: if parsing fails, log warning and return (raw_output, None, "").
     """
-    # Lazy import to avoid circular dependency (providers imports parsers at module level)
     from ai_cli_runner.providers import PROVIDERS
 
     config = PROVIDERS.get(provider)
     if config is None or config.parse_json is None:
         logger.warning("No JSON parser for provider '%s'; returning raw output", provider)
-        return raw_output, None
+        return raw_output, None, ""
 
     try:
         return config.parse_json(raw_output, provider)
-    except Exception:  # noqa: BLE001 — best-effort: never raise to caller
+    except Exception:  # noqa: BLE001
         logger.warning("Failed to parse JSON output from '%s'; returning raw output", provider, exc_info=True)
-        return raw_output, None
+        return raw_output, None, ""

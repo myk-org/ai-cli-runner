@@ -250,6 +250,116 @@ class TestCallAiCli:
             "--dangerously-skip-permissions",
         ]
 
+    @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
+    @patch("ai_cli_runner.client._run_with_process_group")
+    async def test_cursor_output_format_uses_stream_json_wire_format(
+        self, mock_run: MagicMock, _mock_thread: MagicMock
+    ) -> None:
+        import json
+
+        cursor_response = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "type": "assistant",
+                        "message": {"role": "assistant", "content": [{"type": "text", "text": "Hello!"}]},
+                        "session_id": "s1",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "result",
+                        "subtype": "success",
+                        "is_error": False,
+                        "duration_ms": 100,
+                        "result": "Hello!",
+                        "session_id": "s1",
+                        "usage": {"inputTokens": 5, "outputTokens": 3, "cacheReadTokens": 0, "cacheWriteTokens": 0},
+                    }
+                ),
+            ]
+        )
+        mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout=cursor_response, stderr="")
+        result = await call_ai_cli(prompt="hello", ai_provider="cursor", ai_model="gpt-4", output_format="json")
+        cmd = mock_run.call_args[0][0]
+        idx = cmd.index("--output-format")
+        assert cmd[idx + 1] == "stream-json"  # cursor uses stream-json on the wire
+        assert result.success is True
+        assert result.text == "Hello!"
+
+    @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
+    @patch("ai_cli_runner.client._run_with_process_group")
+    async def test_cursor_strips_partial_streaming_flag(self, mock_run: MagicMock, _mock_thread: MagicMock) -> None:
+        """Cursor strips --stream-partial-output when output_format='json'."""
+        import json
+
+        cursor_response = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "type": "assistant",
+                        "message": {"role": "assistant", "content": [{"type": "text", "text": "Hello!"}]},
+                        "session_id": "s1",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "result",
+                        "subtype": "success",
+                        "is_error": False,
+                        "duration_ms": 100,
+                        "result": "Hello!",
+                        "session_id": "s1",
+                        "usage": {
+                            "inputTokens": 5,
+                            "outputTokens": 3,
+                            "cacheReadTokens": 0,
+                            "cacheWriteTokens": 0,
+                        },
+                    }
+                ),
+            ]
+        )
+        mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout=cursor_response, stderr="")
+        await call_ai_cli(
+            prompt="test",
+            ai_provider="cursor",
+            ai_model="test-model",
+            output_format="json",
+            cli_flags=["--stream-partial-output", "--force"],
+        )
+        cmd = mock_run.call_args[0][0]
+        assert "--stream-partial-output" not in cmd
+        assert "--force" in cmd
+
+    @patch("ai_cli_runner.client.asyncio.to_thread", side_effect=fake_to_thread)
+    @patch("ai_cli_runner.client._run_with_process_group")
+    async def test_claude_strips_partial_streaming_flag(self, mock_run: MagicMock, _mock_thread: MagicMock) -> None:
+        """Claude strips --include-partial-messages when output_format='json'."""
+        import json
+
+        claude_response = json.dumps(
+            {
+                "type": "result",
+                "result": "Hello!",
+                "duration_ms": 100,
+                "total_cost_usd": 0.01,
+                "usage": {"input_tokens": 5, "output_tokens": 3},
+                "modelUsage": {"opus-4": {}},
+            }
+        )
+        mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout=claude_response, stderr="")
+        await call_ai_cli(
+            prompt="test",
+            ai_provider="claude",
+            ai_model="opus-4",
+            output_format="json",
+            cli_flags=["--include-partial-messages", "--force"],
+        )
+        cmd = mock_run.call_args[0][0]
+        assert "--include-partial-messages" not in cmd
+        assert "--force" in cmd
+
     async def test_error_returns_ai_result(self) -> None:
         result = await call_ai_cli(prompt="hello", ai_provider="unknown", ai_model="model")
         assert isinstance(result, AIResult)
