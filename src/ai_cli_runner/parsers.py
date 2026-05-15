@@ -6,7 +6,7 @@ from typing import Any
 
 from simple_logger.logger import get_logger
 
-from ai_cli_runner.models import AITokenUsage
+from ai_cli_runner.models import AITokenUsage, ParsedOutput
 
 logger = get_logger(name=__name__, level=os.environ.get("LOG_LEVEL", "INFO"))
 
@@ -163,10 +163,15 @@ def parse_gemini_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage
     return text, usage, ""
 
 
-def parse_json_output(raw_output: str, provider: str) -> tuple[str, AITokenUsage | None, str]:
+def parse_json_output(raw_output: str, provider: str) -> ParsedOutput:
     """Route to the correct provider parser.
 
-    Best-effort: if parsing fails, log warning and return (raw_output, None, "").
+    Best-effort: if parsing fails, log warning and return ParsedOutput with raw text.
+
+    Returns:
+        ParsedOutput supporting backward-compatible tuple unpacking:
+            text, usage = parse_json_output(...)   # still works
+            result = parse_json_output(...)         # access .thinking too
     """
     # Lazy import to avoid circular dependency (providers imports parsers at module level)
     from ai_cli_runner.providers import PROVIDERS
@@ -174,10 +179,11 @@ def parse_json_output(raw_output: str, provider: str) -> tuple[str, AITokenUsage
     config = PROVIDERS.get(provider)
     if config is None or config.parse_json is None:
         logger.warning("No JSON parser for provider '%s'; returning raw output", provider)
-        return raw_output, None, ""
+        return ParsedOutput(text=raw_output, usage=None, thinking="")
 
     try:
-        return config.parse_json(raw_output, provider)
+        text, usage, thinking = config.parse_json(raw_output, provider)
+        return ParsedOutput(text=text, usage=usage, thinking=thinking)
     except Exception:  # noqa: BLE001 — best-effort: never raise to caller
         logger.warning("Failed to parse JSON output from '%s'; returning raw output", provider, exc_info=True)
-        return raw_output, None, ""
+        return ParsedOutput(text=raw_output, usage=None, thinking="")

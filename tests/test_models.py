@@ -1,6 +1,6 @@
 import pytest
 
-from ai_cli_runner.models import AIResult, AITokenUsage
+from ai_cli_runner.models import AIResult, AITokenUsage, ParsedOutput
 
 
 class TestAITokenUsage:
@@ -42,6 +42,56 @@ class TestAITokenUsage:
     def test_session_id_custom(self) -> None:
         usage = AITokenUsage(session_id="sess-abc-123")
         assert usage.session_id == "sess-abc-123"
+
+
+class TestParsedOutput:
+    def test_default_thinking(self) -> None:
+        parsed = ParsedOutput(text="hello")
+        assert parsed.thinking == ""
+
+    def test_default_usage(self) -> None:
+        parsed = ParsedOutput(text="hello")
+        assert parsed.usage is None
+
+    def test_tuple_unpacking(self) -> None:
+        usage = AITokenUsage(input_tokens=10)
+        parsed = ParsedOutput(text="hello", usage=usage, thinking="reasoning")
+        text, u = parsed
+        assert text == "hello"
+        assert u is usage
+
+    def test_tuple_unpacking_no_usage(self) -> None:
+        parsed = ParsedOutput(text="hello")
+        text, usage = parsed
+        assert text == "hello"
+        assert usage is None
+
+    def test_thinking_accessible(self) -> None:
+        parsed = ParsedOutput(text="answer", thinking="intermediate")
+        assert parsed.thinking == "intermediate"
+
+    def test_thinking_not_in_tuple_unpacking(self) -> None:
+        parsed = ParsedOutput(text="answer", thinking="intermediate")
+        text, usage = parsed
+        assert text == "answer"
+        assert usage is None
+        # thinking is still accessible via attribute
+        assert parsed.thinking == "intermediate"
+
+    def test_len(self) -> None:
+        parsed = ParsedOutput(text="hello", thinking="some thinking")
+        assert len(parsed) == 2
+
+    def test_index_access(self) -> None:
+        usage = AITokenUsage(output_tokens=5)
+        parsed = ParsedOutput(text="hello", usage=usage)
+        assert parsed[0] == "hello"
+        assert parsed[1] is usage
+
+    def test_index_out_of_range(self) -> None:
+        parsed = ParsedOutput(text="hello")
+        with pytest.raises(IndexError):
+            parsed[2]
 
 
 class TestAIResult:

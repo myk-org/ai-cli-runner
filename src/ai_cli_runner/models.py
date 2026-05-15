@@ -23,6 +23,34 @@ class AITokenUsage:
 
 
 @dataclass
+class ParsedOutput:
+    """Parsed output from an AI CLI JSON response.
+
+    Supports tuple unpacking for backward compatibility:
+        text, usage = parse_json_output(...)
+    Also provides thinking field:
+        result = parse_json_output(...)
+        result.thinking  # intermediate reasoning
+    """
+
+    text: str
+    usage: AITokenUsage | None = None
+    thinking: str = ""
+
+    def __iter__(self) -> Iterator[Any]:
+        """Support tuple unpacking: text, usage = parse_json_output(...)"""
+        return iter((self.text, self.usage))
+
+    def __getitem__(self, index: int) -> Any:
+        """Support index access for backward compatibility."""
+        return (self.text, self.usage)[index]
+
+    def __len__(self) -> int:
+        """Support len() for backward compatibility with tuple."""
+        return 2
+
+
+@dataclass
 class AIResult:
     """Result from an AI CLI call.
 
