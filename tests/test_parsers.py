@@ -303,6 +303,27 @@ class TestParseCursorJson:
         assert "Let me check" not in text
         assert text == "Hi — good to meet you. How can I help you today?"
 
+    def test_assistant_content_shape_mismatch_does_not_crash(self) -> None:
+        """Parser handles unexpected content shapes without crashing."""
+        lines = [
+            json.dumps({"type": "assistant", "message": {"role": "assistant", "content": {"type": "text"}}}),
+            json.dumps(
+                {
+                    "type": "result",
+                    "subtype": "success",
+                    "is_error": False,
+                    "duration_ms": 50,
+                    "result": "Final",
+                    "session_id": "m2",
+                    "usage": {"inputTokens": 1, "outputTokens": 1, "cacheReadTokens": 0, "cacheWriteTokens": 0},
+                }
+            ),
+        ]
+        text, usage, thinking = parse_cursor_json("\n".join(lines), "cursor")
+        assert text == "Final"
+        assert usage is not None
+        assert thinking == ""
+
     def test_simple_single_message(self) -> None:
         """Test with a single assistant message (no tool use)."""
         text, usage, _thinking = parse_cursor_json(CURSOR_SIMPLE_JSON, "cursor")

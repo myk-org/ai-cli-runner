@@ -79,8 +79,13 @@ def parse_cursor_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage
 
         if msg_type == "assistant":
             # Extract text from assistant message content blocks
-            content = data.get("message", {}).get("content", [])
-            texts = [block["text"] for block in content if block.get("type") == "text" and block.get("text")]
+            raw_content = data.get("message", {}).get("content", [])
+            content = raw_content if isinstance(raw_content, list) else []
+            texts = [
+                block.get("text", "")
+                for block in content
+                if isinstance(block, dict) and block.get("type") == "text" and block.get("text")
+            ]
             joined = "\n".join(texts)
             last_assistant_had_text = bool(joined)
             if joined:
