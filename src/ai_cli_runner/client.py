@@ -219,7 +219,8 @@ async def call_ai_cli(
                 "Caller-supplied --output-format in cli_flags will be overridden by output_format=%r",
                 output_format,
             )
-        effective_cli_flags = ["--output-format", output_format, *cleaned_flags]
+        wire_format = config.json_wire_format
+        effective_cli_flags = ["--output-format", wire_format, *cleaned_flags]
 
     if continue_session:
         effective_cli_flags.extend(config.continue_flags)

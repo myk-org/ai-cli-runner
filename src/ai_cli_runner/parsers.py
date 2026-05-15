@@ -54,21 +54,52 @@ def parse_claude_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage
 
 
 def parse_cursor_json(raw_output: str, provider: str) -> tuple[str, AITokenUsage | None]:
-    """Parse Cursor CLI JSON output. Returns (text, usage)."""
-    data = _extract_json(raw_output)
-    text = data.get("result", "")
+    """Parse Cursor CLI stream-json output. Returns (text, usage).
 
-    usage_data = data.get("usage", {})
+    Cursor uses stream-json format (NDJSON) to separate intermediate tool-use
+    reasoning from the final answer. We extract only the last assistant message
+    as the result text, and usage from the final result line.
+    """
+    last_assistant_text = ""
+    usage: AITokenUsage | None = None
+    result_text = ""
 
-    usage = AITokenUsage(
-        input_tokens=usage_data.get("inputTokens", 0),
-        output_tokens=usage_data.get("outputTokens", 0),
-        cache_read_tokens=usage_data.get("cacheReadTokens", 0),
-        cache_write_tokens=usage_data.get("cacheWriteTokens", 0),
-        duration_ms=data.get("duration_ms"),
-        provider=provider,
-        session_id=data.get("session_id", ""),
-    )
+    for line in raw_output.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        msg_type = data.get("type", "")
+
+        if msg_type == "assistant":
+            # Extract text from assistant message content blocks
+            content = data.get("message", {}).get("content", [])
+            texts = [block["text"] for block in content if block.get("type") == "text" and block.get("text")]
+            last_assistant_text = "\n".join(texts)
+
+        elif msg_type == "result":
+            result_text = data.get("result", "")
+            # Extract usage from the result line
+            usage_data = data.get("usage", {})
+            usage = AITokenUsage(
+                input_tokens=usage_data.get("inputTokens", 0),
+                output_tokens=usage_data.get("outputTokens", 0),
+                cache_read_tokens=usage_data.get("cacheReadTokens", 0),
+                cache_write_tokens=usage_data.get("cacheWriteTokens", 0),
+                duration_ms=data.get("duration_ms"),
+                provider=provider,
+                session_id=data.get("session_id", ""),
+            )
+
+    if usage is None:
+        logger.warning("No result line found in Cursor stream-json output; returning best-effort text")
+
+    # Use last assistant message if available, otherwise fall back to result text
+    text = last_assistant_text or result_text
     return text, usage
 
 

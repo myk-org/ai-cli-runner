@@ -21,6 +21,7 @@ class ProviderConfig:
     parse_json: Callable[[str, str], tuple[str, AITokenUsage | None]] | None = None
     continue_flags: tuple[str, ...] = ()
     resume_flag: str = ""
+    json_wire_format: str = "json"  # actual --output-format value sent to CLI
 
 
 def _build_claude_cmd(binary: str, model: str, _cwd: Path | None, cli_flags: list[str]) -> list[str]:
@@ -62,6 +63,7 @@ PROVIDERS: dict[str, ProviderConfig] = {
         parse_json=parse_cursor_json,
         continue_flags=("--continue",),
         resume_flag="--resume",
+        json_wire_format="stream-json",
     ),
 }
 

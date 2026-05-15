@@ -157,3 +157,16 @@ class TestProviderSessionConfig:
         config = ProviderConfig(binary="test", build_cmd=_build_claude_cmd)
         assert config.continue_flags == ()
         assert config.resume_flag == ""
+        assert config.json_wire_format == "json"
+
+    async def test_claude_json_wire_format(self) -> None:
+        config = PROVIDERS["claude"]
+        assert config.json_wire_format == "json"
+
+    async def test_gemini_json_wire_format(self) -> None:
+        config = PROVIDERS["gemini"]
+        assert config.json_wire_format == "json"
+
+    async def test_cursor_json_wire_format(self) -> None:
+        config = PROVIDERS["cursor"]
+        assert config.json_wire_format == "stream-json"

@@ -44,23 +44,71 @@ CLAUDE_JSON = json.dumps(
     }
 )
 
-CURSOR_JSON = json.dumps(
-    {
-        "type": "result",
-        "subtype": "success",
-        "is_error": False,
-        "duration_ms": 6661,
-        "duration_api_ms": 6661,
-        "result": "Hi — good to meet you. How can I help you today?",
-        "session_id": "abc123",
-        "usage": {
-            "inputTokens": 3602,
-            "outputTokens": 61,
-            "cacheReadTokens": 9728,
-            "cacheWriteTokens": 0,
-        },
-    }
-)
+# Cursor stream-json (NDJSON) output: multiple lines including chain-of-thought
+_CURSOR_STREAM_LINES = [
+    json.dumps({"type": "system", "subtype": "init", "session_id": "abc123"}),
+    json.dumps(
+        {
+            "type": "assistant",
+            "message": {"role": "assistant", "content": [{"type": "text", "text": "Let me check that for you."}]},
+            "session_id": "abc123",
+        }
+    ),
+    json.dumps({"type": "tool_call", "subtype": "started", "call_id": "call_1"}),
+    json.dumps({"type": "tool_call", "subtype": "completed", "call_id": "call_1"}),
+    json.dumps(
+        {
+            "type": "assistant",
+            "message": {
+                "role": "assistant",
+                "content": [{"type": "text", "text": "Hi — good to meet you. How can I help you today?"}],
+            },
+            "session_id": "abc123",
+        }
+    ),
+    json.dumps(
+        {
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "duration_ms": 6661,
+            "duration_api_ms": 6661,
+            "result": "Let me check that for you.Hi — good to meet you. How can I help you today?",
+            "session_id": "abc123",
+            "usage": {
+                "inputTokens": 3602,
+                "outputTokens": 61,
+                "cacheReadTokens": 9728,
+                "cacheWriteTokens": 0,
+            },
+        }
+    ),
+]
+CURSOR_JSON = "\n".join(_CURSOR_STREAM_LINES)
+
+# Simple cursor output: single assistant message, no tool calls
+_CURSOR_SIMPLE_LINES = [
+    json.dumps({"type": "system", "subtype": "init", "session_id": "simple123"}),
+    json.dumps(
+        {
+            "type": "assistant",
+            "message": {"role": "assistant", "content": [{"type": "text", "text": "Hi there!"}]},
+            "session_id": "simple123",
+        }
+    ),
+    json.dumps(
+        {
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "duration_ms": 2000,
+            "result": "Hi there!",
+            "session_id": "simple123",
+            "usage": {"inputTokens": 100, "outputTokens": 10, "cacheReadTokens": 0, "cacheWriteTokens": 0},
+        }
+    ),
+]
+CURSOR_SIMPLE_JSON = "\n".join(_CURSOR_SIMPLE_LINES)
 
 GEMINI_JSON_BODY = json.dumps(
     {
@@ -234,6 +282,118 @@ class TestParseCursorJson:
         _, usage = parsed
         assert usage is not None
         assert usage.session_id == "abc123"
+
+    def test_strips_chain_of_thought(self) -> None:
+        """Verify chain-of-thought from intermediate assistant messages is excluded."""
+        text, _usage = parse_cursor_json(CURSOR_JSON, "cursor")
+        assert "Let me check" not in text
+        assert text == "Hi — good to meet you. How can I help you today?"
+
+    def test_simple_single_message(self) -> None:
+        """Test with a single assistant message (no tool use)."""
+        text, usage = parse_cursor_json(CURSOR_SIMPLE_JSON, "cursor")
+        assert text == "Hi there!"
+        assert usage is not None
+        assert usage.session_id == "simple123"
+        assert usage.input_tokens == 100
+        assert usage.output_tokens == 10
+        assert usage.duration_ms == 2000
+
+    def test_last_assistant_empty_content_uses_result_fallback(self) -> None:
+        """If last assistant message has no text blocks, fall back to result text."""
+        assistant_1 = {
+            "type": "assistant",
+            "message": {
+                "role": "assistant",
+                "content": [{"type": "text", "text": "Intermediate reasoning"}],
+            },
+            "session_id": "x",
+        }
+        assistant_2 = {
+            "type": "assistant",
+            "message": {
+                "role": "assistant",
+                "content": [{"type": "tool_use", "id": "t1"}],
+            },
+            "session_id": "x",
+        }
+        result_line = {
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "duration_ms": 100,
+            "result": "Final answer from result",
+            "session_id": "x",
+            "usage": {
+                "inputTokens": 10,
+                "outputTokens": 5,
+                "cacheReadTokens": 0,
+                "cacheWriteTokens": 0,
+            },
+        }
+        lines = [
+            json.dumps(assistant_1),
+            json.dumps({"type": "tool_call", "subtype": "started", "call_id": "c1"}),
+            json.dumps(assistant_2),
+            json.dumps(result_line),
+        ]
+        text, usage = parse_cursor_json("\n".join(lines), "cursor")
+        # Last assistant had no text blocks, so last_assistant_text is "", falls back to result_text
+        assert text == "Final answer from result"
+        assert usage is not None
+
+    def test_malformed_ndjson_lines_skipped(self) -> None:
+        """Non-JSON lines in stream output are silently skipped."""
+        assistant_msg = {
+            "type": "assistant",
+            "message": {
+                "role": "assistant",
+                "content": [{"type": "text", "text": "Hello!"}],
+            },
+            "session_id": "m1",
+        }
+        result_line = {
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "duration_ms": 100,
+            "result": "Hello!",
+            "session_id": "m1",
+            "usage": {
+                "inputTokens": 10,
+                "outputTokens": 5,
+                "cacheReadTokens": 0,
+                "cacheWriteTokens": 0,
+            },
+        }
+        lines = [
+            "Warning: some CLI noise",
+            "not json at all",
+            json.dumps(assistant_msg),
+            json.dumps(result_line),
+        ]
+        text, usage = parse_cursor_json("\n".join(lines), "cursor")
+        assert text == "Hello!"
+        assert usage is not None
+        assert usage.session_id == "m1"
+
+    def test_no_result_line_returns_empty(self) -> None:
+        """If stream has no result line, return best-effort text with None usage."""
+        assistant_msg = {
+            "type": "assistant",
+            "message": {
+                "role": "assistant",
+                "content": [{"type": "text", "text": "Partial response"}],
+            },
+            "session_id": "nr1",
+        }
+        lines = [
+            json.dumps({"type": "system", "subtype": "init", "session_id": "nr1"}),
+            json.dumps(assistant_msg),
+        ]
+        text, usage = parse_cursor_json("\n".join(lines), "cursor")
+        assert text == "Partial response"
+        assert usage is None
 
 
 class TestParseGeminiJson:
